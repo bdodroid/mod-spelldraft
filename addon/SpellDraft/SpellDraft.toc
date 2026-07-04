@@ -1,0 +1,11 @@
+## Interface: 30300
+## Title: SpellDraft
+## Notes: Classless randomized spell drafting AddOn
+## Author: bdodroid
+## Version: 1.0
+## SavedVariables: SpellDraftDB
+SpellChoice.xml
+SpellData.lua
+SpellChoice.lua
+SpellBook.lua
+PrestigeNameplates.lua

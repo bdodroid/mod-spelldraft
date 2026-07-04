@@ -1,0 +1,35 @@
+#
+# This file is part of the AzerothCore Project. See AUTHORS file for Copyright information
+#
+# This file is free software; as a special exception the author gives
+# unlimited permission to copy and/or distribute it, with or without
+# modifications, as long as this notice is preserved.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY, to the extent permitted by law; without even the
+# implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+#
+
+########################################
+# SpellDraft Module Configuration
+########################################
+#
+# NOTE: The gameplay tuning and drafting rules (such as max level, starting gear,
+# ban list, draft/prestige rules) live in Eluna Lua script files, specifically:
+#     etc/modules/lua_scripts/spelldraft_config.lua
+#
+# The C++ module is a shim that handles class proficiencies and secondary resource bars.
+# Setting SpellDraft.Enable to 0 will disable the C++ hooks, but will NOT affect
+# the Eluna Lua scripting engine which does not read worldserver.conf.
+#
+
+#
+#    SpellDraft.Enable
+#        Description: Enable the C++ portion of the SpellDraft module.
+#                     Disabling this disables custom class weapon/armor proficiencies
+#                     and secondary power display behaviors.
+#        Default:     1 - (Enabled)
+#                     0 - (Disabled)
+#
+
+SpellDraft.Enable = 1
