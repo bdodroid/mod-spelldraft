@@ -201,8 +201,8 @@ local function EnsurePrestigeEntry(_, player)
             local p = GetPlayerByGUID(guid)
             if not p or not p:IsInWorld() then return end
 
-            -- Remove default starting class spells so player starts classless
-            local spellsQ = CharDBQuery("SELECT spell FROM character_spell WHERE guid = " .. guid)
+            -- Remove default starting class spells so player starts classless (excluding any spells already drafted during the login race window)
+            local spellsQ = CharDBQuery("SELECT spell FROM character_spell WHERE guid = " .. guid .. " AND spell NOT IN (SELECT spell_id FROM drafted_spells WHERE player_guid = " .. guid .. ")")
             if spellsQ then
                 local spellsToRemove = {}
                 repeat

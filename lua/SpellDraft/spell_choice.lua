@@ -607,6 +607,12 @@ local function OnLearnSpell(event, player, spellId)
         return
     end
 
+    -- Allow already drafted spells (prevents anti-cheat from deleting them on login/load)
+    local dq = CharDBQuery("SELECT 1 FROM drafted_spells WHERE player_guid = " .. guid .. " AND spell_id = " .. spellId)
+    if dq then
+        return
+    end
+
     --  Check if the player is in Draft Mode
     local res = CharDBQuery("SELECT draft_state FROM prestige_stats WHERE player_id = " .. guid)
     if res and res:GetUInt32(0) == 1 then
@@ -1311,7 +1317,21 @@ local function OnLogin(event, player)
     CONFIG.EnsurePlayerLanguage(player)
     SyncDraftedTalents(player)
     local guid = player:GetGUIDLow()
-        local playerGuid = player:GetGUIDLow()
+
+    -- Self-healing: restore any drafted spells that might have been accidentally removed/lost
+    local draftedQ = CharDBQuery("SELECT spell_id FROM drafted_spells WHERE player_guid = " .. guid)
+    if draftedQ then
+        SpellDraft_SetSystemLearning(guid, true)
+        repeat
+            local spellId = draftedQ:GetUInt32(0)
+            if not player:HasSpell(spellId) then
+                player:LearnSpell(spellId)
+            end
+        until not draftedQ:NextRow()
+        SpellDraft_SetSystemLearning(guid, false)
+    end
+
+    local playerGuid = player:GetGUIDLow()
 
 
     local query = CharDBQuery("SELECT total_expected_drafts, successful_drafts FROM prestige_stats WHERE player_id = " .. playerGuid)

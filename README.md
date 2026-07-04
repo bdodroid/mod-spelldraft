@@ -131,6 +131,32 @@ If you prefer to perform the steps yourself, follow this sequence:
 
 ---
 
+## Updating the Module
+
+If you are updating to the latest version of `mod-spelldraft`, follow these steps to apply updates safely without losing any database data or player character progress:
+
+### 1. Pull the Latest Code
+Navigate to your module directory and pull the latest updates from GitHub:
+```bash
+cd modules/mod-spelldraft
+git pull
+```
+
+### 2. Run the Installer Script
+Run the automated installation script to redeploy the updated Lua scripts, configuration files, and DBC/C++ compiler changes:
+```bash
+./install.sh
+```
+> [!NOTE]
+> The installation script will check if your active `mod_spelldraft.conf` configuration exists. If it does, it will **skip overwriting it** to preserve your custom settings.
+
+### 3. Reload or Restart
+To apply the changes, reload the Eluna scripting engine in-game or restart your server:
+* **Reload Eluna (No Downtime):** Type `.eluna reload` in-game as a GM to immediately hot-reload the updated scripts. Affected players will just need to log out and back in to apply the updates.
+* **Server Reboot:** Restart your worldserver container or process (e.g. `podman restart ac-worldserver` or `docker compose restart ac-worldserver`).
+
+---
+
 ## Configuration File Parameters
 
 You can customize the draft system parameters by editing `lua_scripts/spelldraft_config.lua`:
