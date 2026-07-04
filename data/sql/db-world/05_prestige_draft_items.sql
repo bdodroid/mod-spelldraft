@@ -61,7 +61,7 @@ UPDATE `item_template` SET
 WHERE `entry` = 30811;
 
 UPDATE `item_template` SET
-  `class` = 9,
+  `class` = 0,
   `subclass` = 0,
   `name` = 'Lost Grimoire',
   `Quality` = 3,
@@ -80,7 +80,7 @@ UPDATE `item_template` SET
 WHERE `entry` = 13149;
 
 UPDATE `item_template` SET
-  `class` = 9,
+  `class` = 12,
   `subclass` = 0,
   `name` = 'Tome of Talents',
   `Quality` = 3,

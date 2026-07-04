@@ -15,7 +15,7 @@
 -- 1. Swap target templates to entries 4427 (Scroll of Reroll) and 1078 (Scroll of Ban)
 UPDATE `item_template` SET
   `class` = 0,
-  `subclass` = 4,
+  `subclass` = 8,
   `name` = 'Scroll of Reroll',
   `Quality` = 2,
   `Flags` = 0,
@@ -35,8 +35,8 @@ UPDATE `item_template` SET
 WHERE `entry` = 4427;
 
 UPDATE `item_template` SET
-  `class` = 0,
-  `subclass` = 4,
+  `class` = 12,
+  `subclass` = 0,
   `name` = 'Scroll of Ban',
   `Quality` = 2,
   `Flags` = 0,
