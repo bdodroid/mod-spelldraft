@@ -52,9 +52,9 @@ end
 local function ApplyDraftPowerTypes(player)
     if not player or not player:IsInWorld() then return end
 
-    player:SetMaxPower(1, 100)  -- Rage
-    player:SetMaxPower(3, 100)  -- Energy
-    player:SetMaxPower(6, 100)  -- Runic Power
+    player:SetMaxPower(1, 1000) -- Rage (WoW scales Rage by 10, so 1000 = 100 Rage in UI)
+    player:SetMaxPower(3, 100)  -- Energy (1-to-1 scaling)
+    player:SetMaxPower(6, 1000) -- Runic Power (WoW scales Runic Power by 10, so 1000 = 100 RP in UI)
 
     -- Mana: if character has 0 base max mana, give them a custom mana pool
     if player:GetMaxPower(0) == 0 then
