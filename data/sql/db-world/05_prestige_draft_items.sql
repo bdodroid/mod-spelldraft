@@ -104,61 +104,37 @@ DELETE FROM `creature_loot_template` WHERE `Reference` = 99000;
 DELETE FROM `creature_loot_template` WHERE `Item` IN (17731, 30811, 13149, 25462);
 
 -- 4. Inject Scroll of Reroll (17731) directly
--- Normal / Elite (0.6%)
 INSERT INTO `creature_loot_template` (`Entry`, `Item`, `Reference`, `Chance`, `GroupId`, `MinCount`, `MaxCount`)
-SELECT DISTINCT cl.Entry, 17731, 0, 0.6, 0, 1, 1
+SELECT cl.Entry, 17731, 0,
+       CASE WHEN MAX(ct.`rank`) = 3 THEN 10.0 ELSE 0.6 END,
+       0, 1, 1
 FROM `creature_loot_template` cl
-JOIN `creature_template` ct ON cl.Entry = ct.entry
-WHERE cl.Item > 0 AND ct.rank IN (0, 1, 2, 4);
-
--- Bosses (10.0%)
-INSERT INTO `creature_loot_template` (`Entry`, `Item`, `Reference`, `Chance`, `GroupId`, `MinCount`, `MaxCount`)
-SELECT DISTINCT cl.Entry, 17731, 0, 10.0, 0, 1, 1
-FROM `creature_loot_template` cl
-JOIN `creature_template` ct ON cl.Entry = ct.entry
-WHERE cl.Item > 0 AND ct.rank = 3;
+JOIN `creature_template` ct ON cl.Entry = ct.lootid
+GROUP BY cl.Entry;
 
 -- 5. Inject Scroll of Ban (30811) directly
--- Normal / Elite (0.6%)
 INSERT INTO `creature_loot_template` (`Entry`, `Item`, `Reference`, `Chance`, `GroupId`, `MinCount`, `MaxCount`)
-SELECT DISTINCT cl.Entry, 30811, 0, 0.6, 0, 1, 1
+SELECT cl.Entry, 30811, 0,
+       CASE WHEN MAX(ct.`rank`) = 3 THEN 10.0 ELSE 0.6 END,
+       0, 1, 1
 FROM `creature_loot_template` cl
-JOIN `creature_template` ct ON cl.Entry = ct.entry
-WHERE cl.Item > 0 AND ct.rank IN (0, 1, 2, 4);
-
--- Bosses (10.0%)
-INSERT INTO `creature_loot_template` (`Entry`, `Item`, `Reference`, `Chance`, `GroupId`, `MinCount`, `MaxCount`)
-SELECT DISTINCT cl.Entry, 30811, 0, 10.0, 0, 1, 1
-FROM `creature_loot_template` cl
-JOIN `creature_template` ct ON cl.Entry = ct.entry
-WHERE cl.Item > 0 AND ct.rank = 3;
+JOIN `creature_template` ct ON cl.Entry = ct.lootid
+GROUP BY cl.Entry;
 
 -- 6. Inject Lost Grimoire (13149) directly
--- Normal / Elite (0.1%)
 INSERT INTO `creature_loot_template` (`Entry`, `Item`, `Reference`, `Chance`, `GroupId`, `MinCount`, `MaxCount`)
-SELECT DISTINCT cl.Entry, 13149, 0, 0.1, 0, 1, 1
+SELECT cl.Entry, 13149, 0,
+       CASE WHEN MAX(ct.`rank`) = 3 THEN 5.0 ELSE 0.1 END,
+       0, 1, 1
 FROM `creature_loot_template` cl
-JOIN `creature_template` ct ON cl.Entry = ct.entry
-WHERE cl.Item > 0 AND ct.rank IN (0, 1, 2, 4);
-
--- Bosses (5.0%)
-INSERT INTO `creature_loot_template` (`Entry`, `Item`, `Reference`, `Chance`, `GroupId`, `MinCount`, `MaxCount`)
-SELECT DISTINCT cl.Entry, 13149, 0, 5.0, 0, 1, 1
-FROM `creature_loot_template` cl
-JOIN `creature_template` ct ON cl.Entry = ct.entry
-WHERE cl.Item > 0 AND ct.rank = 3;
+JOIN `creature_template` ct ON cl.Entry = ct.lootid
+GROUP BY cl.Entry;
 
 -- 7. Inject Tome of Talents (25462) directly
--- Normal / Elite (1.0%)
 INSERT INTO `creature_loot_template` (`Entry`, `Item`, `Reference`, `Chance`, `GroupId`, `MinCount`, `MaxCount`)
-SELECT DISTINCT cl.Entry, 25462, 0, 1.0, 0, 1, 1
+SELECT cl.Entry, 25462, 0,
+       CASE WHEN MAX(ct.`rank`) = 3 THEN 15.0 ELSE 1.0 END,
+       0, 1, 1
 FROM `creature_loot_template` cl
-JOIN `creature_template` ct ON cl.Entry = ct.entry
-WHERE cl.Item > 0 AND ct.rank IN (0, 1, 2, 4);
-
--- Bosses (15.0%)
-INSERT INTO `creature_loot_template` (`Entry`, `Item`, `Reference`, `Chance`, `GroupId`, `MinCount`, `MaxCount`)
-SELECT DISTINCT cl.Entry, 25462, 0, 15.0, 0, 1, 1
-FROM `creature_loot_template` cl
-JOIN `creature_template` ct ON cl.Entry = ct.entry
-WHERE cl.Item > 0 AND ct.rank = 3;
+JOIN `creature_template` ct ON cl.Entry = ct.lootid
+GROUP BY cl.Entry;

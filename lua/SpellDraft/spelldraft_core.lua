@@ -56,11 +56,11 @@ local function ApplyDraftPowerTypes(player)
     player:SetMaxPower(3, 100)  -- Energy (1-to-1 scaling)
     player:SetMaxPower(6, 1000) -- Runic Power (WoW scales Runic Power by 10, so 1000 = 100 RP in UI)
 
-    -- Mana: if character has 0 base max mana, give them a custom mana pool
-    if player:GetMaxPower(0) == 0 then
-        local intellect = player:GetStat(3) or 20
-        local level = player:GetLevel() or 1
-        local customMana = 150 + level * 50 + intellect * 15
+    -- Mana: ensure all characters have at least the baseline custom mana pool
+    local intellect = player:GetStat(3) or 20
+    local level = player:GetLevel() or 1
+    local customMana = 150 + level * 50 + intellect * 15
+    if player:GetMaxPower(0) < customMana then
         player:SetMaxPower(0, customMana)
         player:SetPower(customMana, 0) -- Initialize starting mana
     end

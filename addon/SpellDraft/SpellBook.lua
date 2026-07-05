@@ -282,62 +282,116 @@ end
 -- Bottom Tabs - Independent Grimoire panels (Grimoire, Talents)
 -- ----------------------------------------------------------------------------
 
-local talentRows = {}
+local specFrames = {}
 local talentsFrameCreated = false
+local talentDBInitialized = false
+local LocalizedNameToSpellId = {}
+local TalentsByClassAndSpec = {}
+local currentRanks = {}
+
+-- The specs list in order of classes
+local CLASS_ORDER = {"WARRIOR", "PALADIN", "HUNTER", "ROGUE", "PRIEST", "DEATHKNIGHT", "SHAMAN", "MAGE", "WARLOCK", "DRUID"}
+local CLASS_SPECS = {
+    WARRIOR = {"Arms", "Fury", "Protection"},
+    PALADIN = {"Holy", "Protection", "Retribution"},
+    HUNTER = {"Beast Mastery", "Marksmanship", "Survival"},
+    ROGUE = {"Assassination", "Combat", "Subtlety"},
+    PRIEST = {"Discipline", "Holy", "Shadow"},
+    DEATHKNIGHT = {"Blood", "Frost", "Unholy"},
+    SHAMAN = {"Elemental", "Enhancement", "Restoration"},
+    MAGE = {"Arcane", "Fire", "Frost"},
+    WARLOCK = {"Affliction", "Demonology", "Destruction"},
+    DRUID = {"Balance", "Feral Combat", "Restoration"}
+}
+
+-- Hex colors for classes
+local CLASS_COLORS = {
+    WARRIOR = "C79C6E", PALADIN = "F58CBA", HUNTER = "ABD473", ROGUE = "FFF569",
+    PRIEST = "FFFFFF", DEATHKNIGHT = "C41F3B", SHAMAN = "0070DE", MAGE = "69CCF0",
+    WARLOCK = "9482C9", DRUID = "FF7D0A"
+}
+
+local function InitializeTalentDB()
+    if talentDBInitialized then return end
+    if not SpellDraftTalentDB then return end
+    
+    for spellId, info in pairs(SpellDraftTalentDB) do
+        local name = GetSpellInfo(spellId)
+        if name then
+            LocalizedNameToSpellId[name] = spellId
+            info.name = name
+        else
+            info.name = "Unknown Talent " .. spellId
+        end
+        
+        -- Group by class and spec
+        local c = info.class
+        local s = info.spec
+        if not TalentsByClassAndSpec[c] then
+            TalentsByClassAndSpec[c] = {}
+        end
+        if not TalentsByClassAndSpec[c][s] then
+            TalentsByClassAndSpec[c][s] = {}
+        end
+        
+        info.firstRankSpellId = spellId
+        table.insert(TalentsByClassAndSpec[c][s], info)
+    end
+    talentDBInitialized = true
+end
+
+local function RecalculateTalentRanks()
+    InitializeTalentDB()
+    if not SpellDraftTalentDB then return end
+    
+    -- Clear current ranks
+    for spellId in pairs(SpellDraftTalentDB) do
+        currentRanks[spellId] = 0
+    end
+    
+    -- Count ranks from player's drafted talents
+    if SpellDraft.DraftedTalents then
+        for _, spellId in ipairs(SpellDraft.DraftedTalents) do
+            local name = GetSpellInfo(spellId)
+            if name then
+                local firstRankSpellId = LocalizedNameToSpellId[name]
+                if firstRankSpellId then
+                    currentRanks[firstRankSpellId] = currentRanks[firstRankSpellId] + 1
+                end
+            end
+        end
+    end
+end
+
+local function GetKnownSpellId(talent)
+    if not SpellDraft.DraftedTalents then return talent.firstRankSpellId end
+    local bestSpellId = talent.firstRankSpellId
+    for _, sid in ipairs(SpellDraft.DraftedTalents) do
+        local name = GetSpellInfo(sid)
+        if name == talent.name then
+            return sid
+        end
+    end
+    return bestSpellId
+end
 
 local function CreateTalentsPanel()
     if talentsFrameCreated then return end
     
     SpellDraftTalentsFrame = CreateFrame("Frame", "SpellDraftTalentsFrame", SpellDraftBookFrame)
-    SpellDraftTalentsFrame:SetSize(340, 395)
-    SpellDraftTalentsFrame:SetPoint("TOPLEFT", SpellDraftBookFrame, "TOPLEFT", 22, -45)
+    SpellDraftTalentsFrame:SetSize(340, 362)
+    SpellDraftTalentsFrame:SetPoint("TOPLEFT", SpellDraftBookFrame, "TOPLEFT", 22, -58)
     SpellDraftTalentsFrame:Hide()
-    
-    -- Stats Panel
-    local statsFrame = CreateFrame("Frame", "SpellDraftStatsFrame", SpellDraftTalentsFrame)
-    statsFrame:SetSize(330, 48)
-    statsFrame:SetPoint("TOPLEFT", SpellDraftTalentsFrame, "TOPLEFT", 0, 0)
-    
-    local statsBg = statsFrame:CreateTexture(nil, "BACKGROUND")
-    statsBg:SetAllPoints()
-    statsBg:SetTexture("Interface\\Buttons\\WHITE8x8")
-    statsBg:SetVertexColor(0.1, 0.1, 0.1, 0.5)
-    
-    local statsBorder = CreateFrame("Frame", nil, statsFrame)
-    statsBorder:SetBackdrop({
-        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-        edgeSize = 12,
-        insets = { left = 2, right = 2, top = 2, bottom = 2 }
-    })
-    statsBorder:SetAllPoints()
-    statsBorder:SetBackdropBorderColor(0.3, 0.3, 0.3, 0.6)
-
-    prestigeText = statsFrame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    prestigeText:SetPoint("LEFT", statsFrame, "LEFT", 10, 0)
-    prestigeText:SetJustifyH("LEFT")
-
-    rerollsText = statsFrame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    rerollsText:SetPoint("LEFT", statsFrame, "LEFT", 95, 0)
-    rerollsText:SetJustifyH("LEFT")
-
-    bansText = statsFrame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    bansText:SetPoint("LEFT", statsFrame, "LEFT", 175, 0)
-    bansText:SetJustifyH("LEFT")
-
-    draftsText = statsFrame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    draftsText:SetPoint("LEFT", statsFrame, "LEFT", 250, 0)
-    draftsText:SetJustifyH("LEFT")
     
     -- Scroll Frame
     local scrollFrame = CreateFrame("ScrollFrame", "SpellDraftTalentsScrollFrame", SpellDraftTalentsFrame, "UIPanelScrollFrameTemplate")
-    scrollFrame:SetSize(315, 305)
-    scrollFrame:SetPoint("TOPLEFT", SpellDraftTalentsFrame, "TOPLEFT", 0, -55)
+    scrollFrame:SetSize(315, 352)
+    scrollFrame:SetPoint("TOPLEFT", SpellDraftTalentsFrame, "TOPLEFT", 0, 0)
     
     local scrollChild = CreateFrame("Frame", "SpellDraftTalentsScrollChild", scrollFrame)
     scrollChild:SetSize(310, 1)
     scrollFrame:SetScrollChild(scrollChild)
     
-    -- Keep references
     SpellDraftTalentsScrollChild = scrollChild
     talentsFrameCreated = true
 end
@@ -366,156 +420,329 @@ function SpellDraft.UpdateStatsDisplay()
     end
 end
 
+local function GetOrCreateSpecFrame(index)
+    local f = specFrames[index]
+    if not f then
+        f = CreateFrame("Frame", nil, SpellDraftTalentsScrollChild)
+        f:SetSize(310, 616)
+        
+        -- Header background banner (sleek dark grey panel)
+        local headerBg = f:CreateTexture(nil, "BACKGROUND")
+        headerBg:SetSize(310, 24)
+        headerBg:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
+        headerBg:SetTexture("Interface\\Buttons\\WHITE8x8")
+        headerBg:SetVertexColor(0.15, 0.15, 0.15, 0.9)
+        f.headerBg = headerBg
+        
+        -- Header bottom highlight line
+        local headerBorder = f:CreateTexture(nil, "BORDER")
+        headerBorder:SetSize(310, 1)
+        headerBorder:SetPoint("TOPLEFT", headerBg, "BOTTOMLEFT", 0, 0)
+        headerBorder:SetTexture("Interface\\Buttons\\WHITE8x8")
+        headerBorder:SetVertexColor(0.3, 0.3, 0.3, 0.8)
+        f.headerBorder = headerBorder
+        
+        -- Header text
+        local title = f:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+        title:SetPoint("CENTER", headerBg, "CENTER", 0, 0)
+        f.title = title
+        
+        f.buttons = {}
+        f.linePool = {}
+        f.arrowPool = {}
+        specFrames[index] = f
+    end
+    f:ClearAllPoints()
+    f:Show()
+    f.lineIndex = 0
+    f.arrowIndex = 0
+    return f
+end
+
+local function GetOrCreateTalentButton(specFrame, btnIndex)
+    local btn = specFrame.buttons[btnIndex]
+    if not btn then
+        btn = CreateFrame("Button", nil, specFrame)
+        btn:SetSize(32, 32)
+        
+        -- Dark border outline (peeks out 1px)
+        local border = btn:CreateTexture(nil, "BORDER")
+        border:SetSize(34, 34)
+        border:SetPoint("CENTER", btn, "CENTER", 0, 0)
+        border:SetTexture("Interface\\ChatFrame\\ChatFrameBackground") -- solid white
+        btn.border = border
+        
+        -- Dark backing behind icon
+        local iconBg = btn:CreateTexture(nil, "BACKGROUND")
+        iconBg:SetSize(32, 32)
+        iconBg:SetPoint("CENTER", btn, "CENTER", 0, 0)
+        iconBg:SetTexture("Interface\\Buttons\\WHITE8x8")
+        iconBg:SetVertexColor(0, 0, 0, 0.9)
+        btn.iconBg = iconBg
+        
+        -- Icon texture
+        local icon = btn:CreateTexture(nil, "ARTWORK")
+        icon:SetSize(30, 30)
+        icon:SetPoint("CENTER", btn, "CENTER", 0, 0)
+        icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+        btn.icon = icon
+        
+        -- Rank text frame (so it renders on top of icon)
+        local rankFrame = CreateFrame("Frame", nil, btn)
+        rankFrame:SetAllPoints()
+        
+        local rankText = rankFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        rankText:SetPoint("BOTTOMRIGHT", rankFrame, "BOTTOMRIGHT", 2, -2)
+        btn.rankText = rankText
+        
+        -- Highlight texture on hover
+        local highlight = btn:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
+        if highlight then
+            highlight:SetAllPoints(icon)
+        end
+        
+        btn:SetScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            local spellId = GetKnownSpellId(self.talent)
+            GameTooltip:SetHyperlink("spell:" .. spellId)
+            
+            local talent = self.talent
+            if talent.prereqSpellId > 0 then
+                local prereq = SpellDraftTalentDB[talent.prereqSpellId]
+                if prereq and (currentRanks[talent.prereqSpellId] or 0) < prereq.maxRank then
+                    GameTooltip:AddLine("\nRequires " .. prereq.maxRank .. " points in " .. (prereq.name or "prerequisite") .. ".", 1, 0, 0)
+                end
+            end
+            GameTooltip:Show()
+        end)
+        btn:SetScript("OnLeave", function(self)
+            GameTooltip:Hide()
+        end)
+        
+        specFrame.buttons[btnIndex] = btn
+    end
+    btn:ClearAllPoints()
+    btn:Show()
+    return btn
+end
+
+local function DrawPrereqLine(parentButton, childButton, specFrame, isMet)
+    local r1, c1 = parentButton.row, parentButton.col
+    local r2, c2 = childButton.row, childButton.col
+    local color = isMet and {1.0, 0.82, 0.0, 0.8} or {0.25, 0.25, 0.25, 0.6}
+    
+    local function CreateLineTexture(sf)
+        sf.lineIndex = sf.lineIndex + 1
+        local line = sf.linePool[sf.lineIndex]
+        if not line then
+            line = sf:CreateTexture(nil, "BACKGROUND")
+            line:SetTexture("Interface\\Buttons\\WHITE8x8")
+            sf.linePool[sf.lineIndex] = line
+        end
+        line:ClearAllPoints()
+        line:Show()
+        return line
+    end
+    
+    if c1 == c2 then
+        local line = CreateLineTexture(specFrame)
+        line:SetWidth(4)
+        line:SetVertexColor(unpack(color))
+        line:SetPoint("TOP", parentButton, "BOTTOM", 0, 0)
+        line:SetPoint("BOTTOM", childButton, "TOP", 0, 10)
+    elseif r1 == r2 then
+        local line = CreateLineTexture(specFrame)
+        line:SetHeight(4)
+        line:SetVertexColor(unpack(color))
+        if c1 < c2 then
+            line:SetPoint("LEFT", parentButton, "RIGHT", 0, 0)
+            line:SetPoint("RIGHT", childButton, "LEFT", -8, 0)
+        else
+            line:SetPoint("RIGHT", parentButton, "LEFT", 0, 0)
+            line:SetPoint("LEFT", childButton, "RIGHT", 8, 0)
+        end
+    else
+        local line1 = CreateLineTexture(specFrame)
+        line1:SetWidth(4)
+        line1:SetVertexColor(unpack(color))
+        line1:SetPoint("TOP", parentButton, "BOTTOM", 0, 0)
+        line1:SetHeight(10)
+        
+        local line2 = CreateLineTexture(specFrame)
+        line2:SetHeight(4)
+        line2:SetVertexColor(unpack(color))
+        line2:SetPoint("TOP", line1, "BOTTOM", 0, 2)
+        if c1 < c2 then
+            line2:SetPoint("LEFT", line1, "CENTER", -2, -10)
+            line2:SetWidth((c2 - c1) * 68 + 4)
+        else
+            line2:SetPoint("RIGHT", line1, "CENTER", 2, -10)
+            line2:SetWidth((c1 - c2) * 68 + 4)
+        end
+        
+        local line3 = CreateLineTexture(specFrame)
+        line3:SetWidth(4)
+        line3:SetVertexColor(unpack(color))
+        if c1 < c2 then
+            line3:SetPoint("TOP", line2, "RIGHT", -4, 2)
+        else
+            line3:SetPoint("TOP", line2, "LEFT", 4, 2)
+        end
+        line3:SetPoint("BOTTOM", childButton, "TOP", 0, 10)
+    end
+end
+
+local function DrawArrow(childButton, specFrame, isMet)
+    specFrame.arrowIndex = specFrame.arrowIndex + 1
+    local arrow = specFrame.arrowPool[specFrame.arrowIndex]
+    if not arrow then
+        arrow = specFrame:CreateTexture(nil, "ARTWORK")
+        arrow:SetSize(16, 16)
+        specFrame.arrowPool[specFrame.arrowIndex] = arrow
+    end
+    arrow:ClearAllPoints()
+    arrow:SetTexture(isMet and "Interface\\TalentFrame\\TalentFrame-Arrow-True" or "Interface\\TalentFrame\\TalentFrame-Arrow-False")
+    
+    local prereqId = childButton.talent.prereqSpellId
+    local prereq = prereqId and prereqId > 0 and SpellDraftTalentDB[prereqId]
+    local r1 = prereq and prereq.row or 0
+    local c1 = prereq and prereq.col or 0
+    local r2, c2 = childButton.row, childButton.col
+    
+    if r1 == r2 then
+        if c1 < c2 then
+            arrow:SetTexCoord(0.5, 1.0, 0, 0.5) -- Pointing right
+            arrow:SetPoint("RIGHT", childButton, "LEFT", 2, 0)
+        else
+            arrow:SetTexCoord(1.0, 0.5, 0, 0.5) -- Pointing left
+            arrow:SetPoint("LEFT", childButton, "RIGHT", -2, 0)
+        end
+    else
+        arrow:SetTexCoord(0, 0.5, 0, 0.5) -- Pointing down
+        arrow:SetPoint("BOTTOM", childButton, "TOP", 0, -2)
+    end
+    arrow:Show()
+end
+
+local buttonsByPos = {}
+
 function SpellDraft.RefreshTalentsList()
     if not SpellDraftBookFrame or not SpellDraftTalentsFrame or not SpellDraftTalentsFrame:IsShown() then return end
     
-    -- Hide all existing rows first
-    for _, row in ipairs(talentRows) do
-        row:Hide()
-    end
+    RecalculateTalentRanks()
+    if not SpellDraftTalentDB then return end
     
-    -- Compile list of known passive talents using SpellDraft.DraftedTalents
-    local sortedTalents = {}
-    if SpellDraft.DraftedTalents and SpellDraftData then
-        for _, id in ipairs(SpellDraft.DraftedTalents) do
-            local m = SpellDraftData[id]
-            if m then
-                table.insert(sortedTalents, {
-                    spellId = id,
-                    name = m.name or "Unknown Talent",
-                    rarity = m.rarity or 0,
-                    class = m.class or "GENERAL"
-                })
-            else
-                -- Fallback if not in metadata but known
-                local name = GetSpellInfo(id)
-                if name then
-                    table.insert(sortedTalents, {
-                        spellId = id,
-                        name = name,
-                        rarity = 0,
-                        class = "GENERAL"
-                    })
+    local specsToRender = {}
+    if activeClass == "ALL" then
+        for _, classVal in ipairs(CLASS_ORDER) do
+            local classSpecs = CLASS_SPECS[classVal]
+            if classSpecs then
+                for _, specName in ipairs(classSpecs) do
+                    table.insert(specsToRender, { class = classVal, spec = specName })
                 end
+            end
+        end
+    elseif activeClass ~= "GENERAL" then
+        local classSpecs = CLASS_SPECS[activeClass]
+        if classSpecs then
+            for _, specName in ipairs(classSpecs) do
+                table.insert(specsToRender, { class = activeClass, spec = specName })
             end
         end
     end
     
-    -- Sort by rarity, then name
-    table.sort(sortedTalents, function(a, b)
-        if a.rarity ~= b.rarity then
-            return a.rarity < b.rarity
-        else
-            return a.name < b.name
-        end
-    end)
-    
-    -- Render each talent row
     local yOffset = 0
-    for i, talent in ipairs(sortedTalents) do
-        local row = talentRows[i]
-        if not row then
-            row = CreateFrame("Button", nil, SpellDraftTalentsScrollChild)
-            row:SetSize(300, 50)
-            
-            -- Dark background card with hover effect
-            local bg = row:CreateTexture(nil, "BACKGROUND")
-            bg:SetAllPoints()
-            bg:SetTexture("Interface\\Buttons\\WHITE8x8")
-            bg:SetVertexColor(0.1, 0.1, 0.1, 0.6)
-            row.bg = bg
-            
-            local border = CreateFrame("Frame", nil, row)
-            border:SetBackdrop({
-                edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-                edgeSize = 12,
-                insets = { left = 2, right = 2, top = 2, bottom = 2 }
-            })
-            border:SetAllPoints()
-            border:SetBackdropBorderColor(0.3, 0.3, 0.3, 0.8)
-            row.border = border
-            
-            -- Icon
-            local icon = row:CreateTexture(nil, "ARTWORK")
-            icon:SetSize(40, 40)
-            icon:SetPoint("LEFT", row, "LEFT", 5, 0)
-            row.icon = icon
-            
-            -- Icon Border
-            local iconBorder = CreateFrame("Frame", nil, row)
-            iconBorder:SetBackdrop({
-                edgeFile = "Interface\\Buttons\\UI-SliderBar-Border",
-                edgeSize = 8,
-                insets = { left = 1, right = 1, top = 1, bottom = 1 }
-            })
-            iconBorder:SetPoint("TOPLEFT", icon, "TOPLEFT", -2, 2)
-            iconBorder:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", 2, -2)
-            row.iconBorder = iconBorder
-            
-            -- Name Text
-            local nameText = row:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-            nameText:SetPoint("TOPLEFT", icon, "RIGHT", 10, -5)
-            nameText:SetJustifyH("LEFT")
-            row.nameText = nameText
-            
-            -- Subtext (Rarity + Category)
-            local subText = row:CreateFontString(nil, "ARTWORK", "GameFontDisableSmall")
-            subText:SetPoint("BOTTOMLEFT", icon, "RIGHT", 10, 5)
-            subText:SetJustifyH("LEFT")
-            row.subText = subText
-            
-            -- Tooltip behavior
-            row:SetScript("OnEnter", function(self)
-                self.bg:SetVertexColor(0.2, 0.2, 0.2, 0.8)
-                GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-                GameTooltip:SetHyperlink("spell:" .. self.spellId)
-                GameTooltip:Show()
-            end)
-            row:SetScript("OnLeave", function(self)
-                self.bg:SetVertexColor(0.1, 0.1, 0.1, 0.6)
-                GameTooltip:Hide()
-            end)
-            
-            talentRows[i] = row
+    for index, specInfo in ipairs(specsToRender) do
+        local specFrame = GetOrCreateSpecFrame(index)
+        specFrame:SetPoint("TOPLEFT", SpellDraftTalentsScrollChild, "TOPLEFT", 0, -yOffset)
+        
+        local classColor = CLASS_COLORS[specInfo.class] or "FFFFFF"
+        specFrame.title:SetText(specInfo.spec .. " |cff" .. classColor .. "(" .. specInfo.class .. ")|r")
+        
+        local specTalents = TalentsByClassAndSpec[specInfo.class] and TalentsByClassAndSpec[specInfo.class][specInfo.spec]
+        for k in pairs(buttonsByPos) do buttonsByPos[k] = nil end
+        
+        local btnIndex = 0
+        if specTalents then
+            for _, dt in ipairs(specTalents) do
+                btnIndex = btnIndex + 1
+                local btn = GetOrCreateTalentButton(specFrame, btnIndex)
+                btn.talent = dt
+                btn.row = dt.row
+                btn.col = dt.col
+                
+                local x = dt.col * 68 + 20
+                local y = -(dt.row * 52 + 10 + 24)
+                btn:SetPoint("TOPLEFT", specFrame, "TOPLEFT", x, y)
+                
+                local _, _, iconTexture = GetSpellInfo(dt.firstRankSpellId)
+                btn.icon:SetTexture(iconTexture or "Interface\\Icons\\INV_Misc_QuestionMark")
+                
+                local rank = currentRanks[dt.firstRankSpellId] or 0
+                local maxRank = dt.maxRank
+                local isMet = true
+                if dt.prereqSpellId > 0 then
+                    local prereq = SpellDraftTalentDB[dt.prereqSpellId]
+                    if prereq then
+                        isMet = (currentRanks[dt.prereqSpellId] or 0) >= prereq.maxRank
+                    end
+                end
+                
+                if rank == maxRank then
+                    btn.icon:SetDesaturated(false)
+                    btn.border:SetVertexColor(1.0, 0.82, 0.0, 1.0)
+                    btn.rankText:SetText("|cffffd100" .. rank .. "/" .. maxRank .. "|r")
+                elseif rank > 0 then
+                    btn.icon:SetDesaturated(false)
+                    btn.border:SetVertexColor(0.12, 1.0, 0.12, 1.0)
+                    btn.rankText:SetText("|cff00ff00" .. rank .. "/" .. maxRank .. "|r")
+                elseif isMet then
+                    btn.icon:SetDesaturated(true)
+                    btn.border:SetVertexColor(0.5, 0.5, 0.5, 0.8)
+                    btn.rankText:SetText("|cffffffff0/" .. maxRank .. "|r")
+                else
+                    btn.icon:SetDesaturated(true)
+                    btn.border:SetVertexColor(0.2, 0.2, 0.2, 0.8)
+                    btn.rankText:SetText("|cff8080800/" .. maxRank .. "|r")
+                end
+                
+                buttonsByPos[dt.row .. "_" .. dt.col] = btn
+            end
         end
         
-        row.spellId = talent.spellId
-        
-        -- Get icon and subtext rank
-        local _, subName, iconTexture = GetSpellInfo(talent.spellId)
-        row.icon:SetTexture(iconTexture)
-        
-        -- Name & Rarity colors (racials carry rarity 5 only to stay out of the draft pool)
-        local rName = RARITY_NAMES[talent.rarity] or "Common"
-        local rColor = RARITY_COLORS[talent.rarity] or "|cffb0b0b0"
-        local isRacialTalent = talent.rarity == 5 and (subName or ""):find("Racial") ~= nil
-        if isRacialTalent then
-            rColor = "|cffffd100"
-        end
-
-        row.nameText:SetText(rColor .. talent.name .. "|r")
-        
-        local categoryText = talent.class or "GENERAL"
-        if subName and subName ~= "" then
-            row.subText:SetText(subName .. " | " .. categoryText)
-        else
-            row.subText:SetText(categoryText)
+        for b = btnIndex + 1, #specFrame.buttons do
+            specFrame.buttons[b]:Hide()
         end
         
-        -- Color icon border based on rarity (gold for innate racials)
-        local rRgb = isRacialTalent and { r = 1, g = 0.82, b = 0.1 } or RARITY_RGB[talent.rarity]
-        if rRgb then
-            row.iconBorder:SetBackdropBorderColor(rRgb.r, rRgb.g, rRgb.b, 0.9)
-            row.border:SetBackdropBorderColor(rRgb.r, rRgb.g, rRgb.b, 0.5)
-        else
-            row.iconBorder:SetBackdropBorderColor(0.5, 0.5, 0.5, 0.8)
-            row.border:SetBackdropBorderColor(0.3, 0.3, 0.3, 0.8)
+        if specTalents then
+            for _, dt in ipairs(specTalents) do
+                if dt.prereqSpellId > 0 then
+                    local prereq = SpellDraftTalentDB[dt.prereqSpellId]
+                    if prereq then
+                        local parentBtn = buttonsByPos[prereq.row .. "_" .. prereq.col]
+                        local childBtn = buttonsByPos[dt.row .. "_" .. dt.col]
+                        if parentBtn and childBtn then
+                            local isMet = (currentRanks[dt.prereqSpellId] or 0) >= prereq.maxRank
+                            DrawPrereqLine(parentBtn, childBtn, specFrame, isMet)
+                            DrawArrow(childBtn, specFrame, isMet)
+                        end
+                    end
+                end
+            end
         end
         
-        row:SetPoint("TOPLEFT", SpellDraftTalentsScrollChild, "TOPLEFT", 5, -yOffset)
-        row:Show()
+        for l = specFrame.lineIndex + 1, #specFrame.linePool do
+            specFrame.linePool[l]:Hide()
+        end
+        for a = specFrame.arrowIndex + 1, #specFrame.arrowPool do
+            specFrame.arrowPool[a]:Hide()
+        end
         
-        yOffset = yOffset + 55
+        yOffset = yOffset + 616
+    end
+    
+    for f = #specsToRender + 1, #specFrames do
+        specFrames[f]:Hide()
     end
     
     SpellDraftTalentsScrollChild:SetHeight(math.max(1, yOffset))
@@ -543,55 +770,7 @@ function SpellDraft.ShowTalentsPanel()
     SpellDraft.RefreshTalentsList()
 end
 
-local GRIMOIRE_PANELS = {
-    { text = "Grimoire", action = function() SpellDraft.ShowGrimoirePanel() end },
-    { text = "Talents",  action = function() SpellDraft.ShowTalentsPanel() end },
-}
 
-local function CreateBottomTab(id, panelInfo)
-    local tabName = "SpellDraftBookFrameTab" .. id
-    local tab = _G[tabName]
-
-    if not tab then
-        tab = CreateFrame("Button", tabName, SpellDraftBookFrame, "CharacterFrameTabButtonTemplate")
-    end
-
-    tab:SetID(id)
-    tab:SetText(panelInfo.text)
-    tab:SetNormalFontObject(GameFontNormalSmall)
-    tab:SetHighlightFontObject(GameFontHighlightSmall)
-
-    if id == 1 then
-        tab:ClearAllPoints()
-        tab:SetPoint("CENTER", SpellDraftBookFrame, "BOTTOMLEFT", 60, -15)
-    else
-        tab:ClearAllPoints()
-        tab:SetPoint("LEFT", _G["SpellDraftBookFrameTab" .. (id - 1)], "RIGHT", -15, 0)
-    end
-
-    tab:SetScript("OnClick", function(self)
-        local tabId = self:GetID()
-        SpellDraftBookFrame.selectedTab = tabId
-        PanelTemplates_UpdateTabs(SpellDraftBookFrame)
-        if panelInfo.action then
-            panelInfo.action()
-        end
-    end)
-    return tab
-end
-
-local function SetupBottomTabs()
-    SpellDraftBookFrame.numTabs = #GRIMOIRE_PANELS
-
-    for id, panelInfo in ipairs(GRIMOIRE_PANELS) do
-        local tab = CreateBottomTab(id, panelInfo)
-        PanelTemplates_TabResize(tab, 0)
-        tab:Show()
-    end
-
-    SpellDraftBookFrame.selectedTab = 1
-    PanelTemplates_UpdateTabs(SpellDraftBookFrame)
-end
 
 -- ----------------------------------------------------------------------------
 -- Initialization on PLAYER_LOGIN
@@ -659,13 +838,34 @@ local function InitializeGrimoire()
     
     -- Title Text (Left Page)
     grimoireTitleText = SpellDraftBookFrame:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-    grimoireTitleText:SetPoint("TOPLEFT", SpellDraftBookFrame, "TOPLEFT", 22, -18)
-    grimoireTitleText:SetText("Passive Talents")
+    grimoireTitleText:SetPoint("TOP", SpellDraftBookFrame, "TOPLEFT", 192, -35)
+    grimoireTitleText:SetText("Talents")
     
     -- Title Text (Right Page)
     local talentsTitleText = SpellDraftBookFrame:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-    talentsTitleText:SetPoint("TOPLEFT", SpellDraftBookFrame, "TOPLEFT", 385, -18)
-    talentsTitleText:SetText("Active Spells")
+    talentsTitleText:SetPoint("TOP", SpellDraftBookFrame, "TOPLEFT", 555, -35)
+    talentsTitleText:SetText("Abilities")
+    
+    -- Stats Panel (relocated to the top bar)
+    local statsFrame = CreateFrame("Frame", "SpellDraftStatsFrame", SpellDraftBookFrame)
+    statsFrame:SetSize(350, 24)
+    statsFrame:SetPoint("TOPLEFT", SpellDraftBookFrame, "TOPLEFT", 115, -14)
+    
+    prestigeText = statsFrame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    prestigeText:SetPoint("LEFT", statsFrame, "LEFT", 0, 0)
+    prestigeText:SetJustifyH("LEFT")
+
+    rerollsText = statsFrame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    rerollsText:SetPoint("LEFT", statsFrame, "LEFT", 95, 0)
+    rerollsText:SetJustifyH("LEFT")
+
+    bansText = statsFrame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    bansText:SetPoint("LEFT", statsFrame, "LEFT", 175, 0)
+    bansText:SetJustifyH("LEFT")
+
+    draftsText = statsFrame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    draftsText:SetPoint("LEFT", statsFrame, "LEFT", 250, 0)
+    draftsText:SetJustifyH("LEFT")
     
     -- 3. Expanded Search Box (Tucked next to the right header)
     searchBox = CreateFrame("EditBox", "SpellDraftBookSearchBox", SpellDraftBookFrame, "InputBoxTemplate")
@@ -737,7 +937,7 @@ local function InitializeGrimoire()
         local col = (i - 1) % 2
         local row = math.floor((i - 1) / 2)
         local x = 385 + col * 174
-        local y = -52 - row * 56
+        local y = -58 - row * 56
         btn:SetPoint("TOPLEFT", SpellDraftBookFrame, "TOPLEFT", x, y)
 
         -- Colored rarity frame: a solid square that peeks out ~2px around the icon.
@@ -853,6 +1053,9 @@ local function InitializeGrimoire()
             end
             currentPage = 1
             SpellDraft.RefreshSpellBook()
+            if SpellDraft.RefreshTalentsList then
+                SpellDraft.RefreshTalentsList()
+            end
             PlaySound("igAbilitiesOpen")
         end)
         

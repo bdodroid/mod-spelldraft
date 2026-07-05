@@ -6,6 +6,7 @@
 ## SavedVariables: SpellDraftDB
 SpellChoice.xml
 SpellData.lua
+SpellData_Talents.lua
 SpellChoice.lua
 SpellBook.lua
 PrestigeNameplates.lua

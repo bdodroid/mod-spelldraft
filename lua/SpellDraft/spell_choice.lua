@@ -124,7 +124,7 @@ local blacklistedSpellIds = {
 
 local function LoadTalentChains()
     local query = WorldDBQuery([[
-        SELECT ID, SpellRank_1, SpellRank_2, SpellRank_3, SpellRank_4,
+        SELECT ID, TierID, SpellRank_1, SpellRank_2, SpellRank_3, SpellRank_4,
                SpellRank_5, SpellRank_6, SpellRank_7, SpellRank_8, SpellRank_9
           FROM talent_dbc
     ]])
@@ -133,8 +133,9 @@ local function LoadTalentChains()
     local count = 0
     repeat
         local talentId = query:GetInt32(0)
+        local tierId = query:GetInt32(1)
         local ranks = {}
-        for i = 1, 9 do
+        for i = 2, 10 do
             local spellId = query:GetInt32(i)
             if spellId > 0 then
                 table.insert(ranks, spellId)
@@ -143,10 +144,11 @@ local function LoadTalentChains()
         
         if #ranks > 0 then
             count = count + 1
-            local chain = { talentId = talentId, ranks = ranks }
+            local chain = { talentId = talentId, tierId = tierId, ranks = ranks }
             for rankIndex, spellId in ipairs(ranks) do
                 talentChains[spellId] = {
                     talentId = talentId,
+                    tierId = tierId,
                     rankIndex = rankIndex,
                     ranks = ranks,
                     chain = chain
@@ -161,23 +163,7 @@ local function GetEligibleTalentsPool(player, level)
     local guid = player:GetGUIDLow()
     local queryLevel = math.max(level, 20)
     
-    -- Load all passive spells matching level and category
-    local query = WorldDBQuery(string.format([[
-        SELECT s.Id
-          FROM dbc_spells s
-          JOIN dbc_skilllineability sla ON s.Id = sla.Spell
-          JOIN dbc_skillline sl ON sla.SkillLine = sl.ID
-            AND sl.CategoryID IN (6, 7, 8, 9, 11)
-         WHERE s.SpellLevel <= %d
-           AND (s.Attributes & 0x00000040) != 0
-           AND s.Id NOT IN (
-               SELECT spell_id FROM spell_ranks WHERE spell_id != first_spell_id
-           )
-    ]], queryLevel))
-    
-    if not query then return {} end
-    
-    -- Get player's currently known/drafted spells
+    -- 1. Get player's currently known/drafted spells
     local knownSpells = {}
     local knownQ = CharDBQuery("SELECT spell_id FROM drafted_spells WHERE player_guid = " .. guid)
     if knownQ then
@@ -190,7 +176,7 @@ local function GetEligibleTalentsPool(player, level)
         knownSpells[sid] = true
     end
     
-    -- For each talent chain, find the highest rank the player knows
+    -- 2. For each talent chain, find the highest rank the player knows
     local knownTalentRanks = {}
     for spellId, info in pairs(talentChains) do
         if knownSpells[spellId] then
@@ -200,47 +186,32 @@ local function GetEligibleTalentsPool(player, level)
         end
     end
     
-    local pool = {}
-    local addedTalentIds = {}
-    local candidateSpellIds = {}
+    -- 3. Determine next rank for every talent chain
+    local nextRankSpells = {}
     local talentIdToSpellId = {}
+    for spellId, info in pairs(talentChains) do
+        local talentId = info.talentId
+        if not talentIdToSpellId[talentId] then
+            local highestRank = knownTalentRanks[talentId] or 0
+            local nextRankIndex = highestRank + 1
+            if nextRankIndex <= #info.ranks then
+                local nextSpellId = info.ranks[nextRankIndex]
+                nextRankSpells[nextSpellId] = true
+                talentIdToSpellId[talentId] = nextSpellId
+            end
+        end
+    end
     
-    repeat
-        local spellId = query:GetUInt32(0)
-        local chainInfo = talentChains[spellId]
-        
-        if chainInfo then
-            local talentId = chainInfo.talentId
-            if not addedTalentIds[talentId] and not talentIdToSpellId[talentId] then
-                local highestRank = knownTalentRanks[talentId] or 0
-                local nextRankIndex = highestRank + 1
-                if nextRankIndex <= #chainInfo.ranks then
-                    local nextSpellId = chainInfo.ranks[nextRankIndex]
-                    table.insert(candidateSpellIds, nextSpellId)
-                    talentIdToSpellId[talentId] = nextSpellId
+    -- 4. Filter nextRankSpells by level requirements directly using their tier
+    local pool = {}
+    for spellId, _ in pairs(nextRankSpells) do
+        local info = talentChains[spellId]
+        if info then
+            local reqLevel = 10 + info.tierId * 5
+            if reqLevel <= queryLevel then
+                if not blacklistedSpellIds[spellId] and not knownSpells[spellId] then
+                    table.insert(pool, spellId)
                 end
-            end
-        else
-            -- One-off passive spell (not in talent_dbc)
-            if not blacklistedSpellIds[spellId] and not knownSpells[spellId] then
-                table.insert(pool, spellId)
-            end
-        end
-    until not query:NextRow()
-
-    if #candidateSpellIds > 0 then
-        local levelsMap = {}
-        local lvlCheck = WorldDBQuery("SELECT Id, SpellLevel FROM dbc_spells WHERE Id IN (" .. table.concat(candidateSpellIds, ",") .. ")")
-        if lvlCheck then
-            repeat
-                levelsMap[lvlCheck:GetUInt32(0)] = lvlCheck:GetUInt32(1)
-            until not lvlCheck:NextRow()
-        end
-        for talentId, nextSpellId in pairs(talentIdToSpellId) do
-            local nextSpellLvl = levelsMap[nextSpellId] or 0
-            if nextSpellLvl <= queryLevel then
-                table.insert(pool, nextSpellId)
-                addedTalentIds[talentId] = true
             end
         end
     end
@@ -1289,16 +1260,15 @@ SyncDraftedTalents = function(player, extraSpellId)
     end
 
     local talents = {}
-    if #candidateSpells > 0 then
-        local checkQ = WorldDBQuery("SELECT Id FROM dbc_spells WHERE Id IN (" .. table.concat(candidateSpells, ",") .. ") AND (Attributes & 0x00000040) != 0")
-        if checkQ then
-            repeat
-                table.insert(talents, checkQ:GetUInt32(0))
-            until not checkQ:NextRow()
+    local seenTalent = {}
+    for _, id in ipairs(candidateSpells) do
+        if talentChains[id] and not seenTalent[id] then
+            table.insert(talents, id)
+            seenTalent[id] = true
         end
     end
 
-    if extraSpellId and not seen[extraSpellId] then
+    if extraSpellId and not seen[extraSpellId] and not seenTalent[extraSpellId] then
         table.insert(talents, extraSpellId)
     end
 
@@ -1674,20 +1644,67 @@ RegisterItemEvent(25462, 2, function(event, player, item, target)
         return false
     end
 
-    local poolCopy = {}
-    for _, id in ipairs(eligiblePool) do
-        table.insert(poolCopy, id)
+    -- Query rarities for all eligible pool spells
+    local raritiesMap = {}
+    for offset = 1, #eligiblePool, 500 do
+        local chunk = {}
+        for i = offset, math.min(offset + 499, #eligiblePool) do
+            table.insert(chunk, eligiblePool[i])
+        end
+        local q = WorldDBQuery("SELECT Id, Rarity FROM dbc_spells WHERE Id IN (" .. table.concat(chunk, ",") .. ")")
+        if q then
+            repeat
+                raritiesMap[q:GetUInt32(0)] = q:GetUInt8(1)
+            until not q:NextRow()
+        end
     end
 
-    -- Fisher-Yates shuffle
-    for i = #poolCopy, 2, -1 do
-        local j = math.random(i)
-        poolCopy[i], poolCopy[j] = poolCopy[j], poolCopy[i]
+    -- Group the eligible pool by rarity
+    local categorized = { [0]={}, [1]={}, [2]={}, [3]={}, [4]={} }
+    for _, id in ipairs(eligiblePool) do
+        local rarity = raritiesMap[id] or 0
+        if categorized[rarity] then
+            table.insert(categorized[rarity], id)
+        end
+    end
+
+    local function RollRarity()
+        local r = math.random()
+        if r < 0.50 then return 0
+        elseif r < 0.77 then return 1
+        elseif r < 0.91 then return 2
+        elseif r < 0.97 then return 3
+        else return 4 end
     end
 
     local spells = {}
-    for i = 1, math.min(3, #poolCopy) do
-        table.insert(spells, poolCopy[i])
+    for roll = 1, 3 do
+        local targetRarity = RollRarity()
+        local chosenRarity = nil
+        
+        if #categorized[targetRarity] > 0 then
+            chosenRarity = targetRarity
+        else
+            -- Fallback: find any non-empty bucket starting from common
+            for r = 0, 4 do
+                if #categorized[r] > 0 then
+                    chosenRarity = r
+                    break
+                end
+            end
+        end
+
+        if chosenRarity then
+            local bucket = categorized[chosenRarity]
+            local idx = math.random(#bucket)
+            table.insert(spells, bucket[idx])
+            table.remove(bucket, idx) -- Prevent duplicates in the same draft roll
+        end
+    end
+
+    if #spells == 0 then
+        player:SendBroadcastMessage("No passive talents available for your level.")
+        return false
     end
 
     -- Manually consume 1 tome
@@ -1714,5 +1731,54 @@ end)
 
 -- Execute talent chains loader
 LoadTalentChains()
+
+RegisterPlayerEvent(18, function(event, player, msg, type, lang)
+    if msg == ".testpool" then
+        local level = player:GetLevel()
+        local pool = GetEligibleTalentsPool(player, level)
+        player:SendBroadcastMessage("Eligible talents pool size: " .. #pool)
+        
+        local passives = 0
+        local actives = 0
+        
+        for _, spellId in ipairs(pool) do
+            local q = WorldDBQuery("SELECT Id FROM dbc_spells WHERE Id = " .. spellId)
+            if q then
+                actives = actives + 1
+            else
+                passives = passives + 1
+            end
+        end
+        player:SendBroadcastMessage("Actives (in dbc_spells): " .. actives)
+        player:SendBroadcastMessage("Passives (missing from dbc_spells): " .. passives)
+        
+        local passList = {}
+        local actList = {}
+        for _, spellId in ipairs(pool) do
+            local name = GetSpellInfo(spellId) or ("Spell " .. spellId)
+            local q = WorldDBQuery("SELECT Id FROM dbc_spells WHERE Id = " .. spellId)
+            if q then
+                if #actList < 10 then
+                    table.insert(actList, name .. " (" .. spellId .. ")")
+                end
+            else
+                if #passList < 10 then
+                    table.insert(passList, name .. " (" .. spellId .. ")")
+                end
+            end
+        end
+        
+        player:SendBroadcastMessage("Sample Actives:")
+        for _, s in ipairs(actList) do
+            player:SendBroadcastMessage("  - " .. s)
+        end
+        player:SendBroadcastMessage("Sample Passives:")
+        for _, s in ipairs(passList) do
+            player:SendBroadcastMessage("  - " .. s)
+        end
+        
+        return false
+    end
+end)
 
 
