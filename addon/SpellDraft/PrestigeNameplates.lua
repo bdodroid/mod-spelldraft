@@ -2,6 +2,12 @@ SpellDraft = SpellDraft or {}
 local After = SpellDraft.After
 
 local prestigeLevels = {}
+SpellDraft.PrestigeLevels = prestigeLevels
+
+function SpellDraft.GetPlayerPrestige()
+    local name = UnitName("player")
+    return prestigeLevels[name] or 0
+end
 
 
 if RegisterAddonMessagePrefix then

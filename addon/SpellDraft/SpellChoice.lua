@@ -406,8 +406,12 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1, arg2, arg3, arg4)
 
     elseif prefix == "SpellChoiceBansLeft" then
       bansLeft = tonumber(message) or 0
+      SpellDraft.BansLeft = bansLeft
       if SpellChoiceBanButton then
         SpellChoiceBanButton:SetText(banMode and ("Ban [ON] (" .. bansLeft .. ")") or ("Ban (" .. bansLeft .. ")"))
+      end
+      if SpellDraft.UpdateStatsDisplay then
+        SpellDraft.UpdateStatsDisplay()
       end
   elseif prefix == "SpellChoiceBans" then
     bannedSpells = {}
@@ -485,15 +489,23 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1, arg2, arg3, arg4)
 
     elseif prefix == "SpellChoiceRerolls" then
       rerollsLeft = tonumber(message) or 0
+      SpellDraft.RerollsLeft = rerollsLeft
       UpdateRerollButton()
+      if SpellDraft.UpdateStatsDisplay then
+        SpellDraft.UpdateStatsDisplay()
+      end
 
     elseif prefix == "SpellChoiceDrafts" then
       local totalDrafts = tonumber(message) or 0
+      SpellDraft.DraftsLeft = totalDrafts
       if SpellChoiceTitle then
         SpellChoiceTitle:SetText("" .. totalDrafts .. " Drafts Remaining")
       end
       if dismissToggled and SpellChoiceDismissButton then
         SpellChoiceDismissButton:SetText(totalDrafts .. " Draft(s) Left")
+      end
+      if SpellDraft.UpdateStatsDisplay then
+        SpellDraft.UpdateStatsDisplay()
       end
     elseif prefix == "SpellChoiceRarities" then
       currentSpellRarities = {}

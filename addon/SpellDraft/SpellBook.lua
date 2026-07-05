@@ -84,6 +84,10 @@ local nextPageBtn
 local SpellDraftTalentsFrame
 local SpellDraftTalentsScrollChild
 local grimoireTitleText
+local prestigeText
+local rerollsText
+local bansText
+local draftsText
 
 -- ----------------------------------------------------------------------------
 -- Scanner, Rank Consolidation, and Refresh Logic (WotLK 3.3.5a Compatible)
@@ -285,19 +289,49 @@ local function CreateTalentsPanel()
     if talentsFrameCreated then return end
     
     SpellDraftTalentsFrame = CreateFrame("Frame", "SpellDraftTalentsFrame", SpellDraftBookFrame)
-    SpellDraftTalentsFrame:SetSize(360, 420)
-    SpellDraftTalentsFrame:SetPoint("TOPLEFT", SpellDraftBookFrame, "TOPLEFT", 12, -45)
+    SpellDraftTalentsFrame:SetSize(340, 395)
+    SpellDraftTalentsFrame:SetPoint("TOPLEFT", SpellDraftBookFrame, "TOPLEFT", 22, -45)
     SpellDraftTalentsFrame:Hide()
     
-    -- Sub-header
-    local subHeader = SpellDraftTalentsFrame:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
-    subHeader:SetPoint("TOPLEFT", SpellDraftTalentsFrame, "TOPLEFT", 15, -5)
-    subHeader:SetText("Review your passive draft talent spells and progression.")
+    -- Stats Panel
+    local statsFrame = CreateFrame("Frame", "SpellDraftStatsFrame", SpellDraftTalentsFrame)
+    statsFrame:SetSize(330, 48)
+    statsFrame:SetPoint("TOPLEFT", SpellDraftTalentsFrame, "TOPLEFT", 0, 0)
+    
+    local statsBg = statsFrame:CreateTexture(nil, "BACKGROUND")
+    statsBg:SetAllPoints()
+    statsBg:SetTexture("Interface\\Buttons\\WHITE8x8")
+    statsBg:SetVertexColor(0.1, 0.1, 0.1, 0.5)
+    
+    local statsBorder = CreateFrame("Frame", nil, statsFrame)
+    statsBorder:SetBackdrop({
+        edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
+        edgeSize = 12,
+        insets = { left = 2, right = 2, top = 2, bottom = 2 }
+    })
+    statsBorder:SetAllPoints()
+    statsBorder:SetBackdropBorderColor(0.3, 0.3, 0.3, 0.6)
+
+    prestigeText = statsFrame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    prestigeText:SetPoint("LEFT", statsFrame, "LEFT", 10, 0)
+    prestigeText:SetJustifyH("LEFT")
+
+    rerollsText = statsFrame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    rerollsText:SetPoint("LEFT", statsFrame, "LEFT", 95, 0)
+    rerollsText:SetJustifyH("LEFT")
+
+    bansText = statsFrame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    bansText:SetPoint("LEFT", statsFrame, "LEFT", 175, 0)
+    bansText:SetJustifyH("LEFT")
+
+    draftsText = statsFrame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    draftsText:SetPoint("LEFT", statsFrame, "LEFT", 250, 0)
+    draftsText:SetJustifyH("LEFT")
     
     -- Scroll Frame
     local scrollFrame = CreateFrame("ScrollFrame", "SpellDraftTalentsScrollFrame", SpellDraftTalentsFrame, "UIPanelScrollFrameTemplate")
-    scrollFrame:SetSize(315, 390)
-    scrollFrame:SetPoint("TOPLEFT", SpellDraftTalentsFrame, "TOPLEFT", 10, -25)
+    scrollFrame:SetSize(315, 305)
+    scrollFrame:SetPoint("TOPLEFT", SpellDraftTalentsFrame, "TOPLEFT", 0, -55)
     
     local scrollChild = CreateFrame("Frame", "SpellDraftTalentsScrollChild", scrollFrame)
     scrollChild:SetSize(310, 1)
@@ -306,6 +340,30 @@ local function CreateTalentsPanel()
     -- Keep references
     SpellDraftTalentsScrollChild = scrollChild
     talentsFrameCreated = true
+end
+
+function SpellDraft.UpdateStatsDisplay()
+    if not prestigeText then return end
+    
+    local prestige = SpellDraft.GetPlayerPrestige and SpellDraft.GetPlayerPrestige() or 0
+    local rerolls = SpellDraft.RerollsLeft or 0
+    local bans = SpellDraft.BansLeft or 0
+    local drafts = SpellDraft.DraftsLeft or 0
+    
+    if prestige > 0 then
+        prestigeText:SetText("|cffffd100Prestige:|r " .. prestige)
+    else
+        prestigeText:SetText("|cffb0b0b0Prestige:|r None")
+    end
+    
+    rerollsText:SetText("|cff1eff00Rerolls:|r " .. rerolls)
+    bansText:SetText("|cffe74c3cBans:|r " .. bans)
+    
+    if drafts > 0 then
+        draftsText:SetText("|cff0070ddDrafts:|r " .. drafts)
+    else
+        draftsText:SetText("|cffb0b0b0Drafts:|r Done")
+    end
 end
 
 function SpellDraft.RefreshTalentsList()
@@ -464,7 +522,6 @@ function SpellDraft.RefreshTalentsList()
 end
 
 function SpellDraft.ShowGrimoirePanel()
-    -- Show Grimoire components
     searchBox:Show()
     prevPageBtn:Show()
     nextPageBtn:Show()
@@ -475,37 +532,10 @@ function SpellDraft.ShowGrimoirePanel()
     for _, tab in ipairs(tabs) do
         tab:Show()
     end
-    
-    if grimoireTitleText then
-        grimoireTitleText:SetText("SpellDraft Grimoire")
-    end
-    
-    -- Hide Talents components
-    if SpellDraftTalentsFrame then
-        SpellDraftTalentsFrame:Hide()
-    end
-    
     SpellDraft.RefreshSpellBook()
 end
 
 function SpellDraft.ShowTalentsPanel()
-    -- Hide Grimoire components
-    searchBox:Hide()
-    prevPageBtn:Hide()
-    nextPageBtn:Hide()
-    pageText:Hide()
-    for _, btn in ipairs(buttons) do
-        btn:Hide()
-    end
-    for _, tab in ipairs(tabs) do
-        tab:Hide()
-    end
-    
-    if grimoireTitleText then
-        grimoireTitleText:SetText("Drafted Talents")
-    end
-    
-    -- Show Talents components
     if not SpellDraftTalentsFrame then
         CreateTalentsPanel()
     end
@@ -566,11 +596,10 @@ end
 -- ----------------------------------------------------------------------------
 -- Initialization on PLAYER_LOGIN
 -- ----------------------------------------------------------------------------
-
 local function InitializeGrimoire()
     -- 1. Create Standalone Window Frame (strata set to HIGH to ensure it renders on top)
     SpellDraftBookFrame = CreateFrame("Frame", "SpellDraftBookFrame", UIParent)
-    SpellDraftBookFrame:SetSize(384, 512)
+    SpellDraftBookFrame:SetSize(740, 450)
     SpellDraftBookFrame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
     SpellDraftBookFrame:SetFrameStrata("HIGH")
     SpellDraftBookFrame:Hide()
@@ -612,24 +641,36 @@ local function InitializeGrimoire()
     grimBg:SetPoint("TOPLEFT", SpellDraftBookFrame, "TOPLEFT", 11, -12)
     grimBg:SetPoint("BOTTOMRIGHT", SpellDraftBookFrame, "BOTTOMRIGHT", -12, 11)
     grimBg:SetTexture("Interface\\Buttons\\WHITE8x8")
-    grimBg:SetVertexColor(0, 0, 0, 1.0)
+    grimBg:SetVertexColor(0.08, 0.08, 0.08, 0.95)
     
+    -- Center Divider Line
+    local divider = SpellDraftBookFrame:CreateTexture(nil, "ARTWORK")
+    divider:SetSize(2, 400)
+    divider:SetPoint("CENTER", SpellDraftBookFrame, "CENTER", 0, -10)
+    divider:SetTexture("Interface\\Buttons\\WHITE8x8")
+    divider:SetVertexColor(0.2, 0.2, 0.2, 0.4)
+
     -- Close Button
     local closeBtn = CreateFrame("Button", "SpellDraftBookFrameCloseButton", SpellDraftBookFrame, "UIPanelCloseButton")
-    closeBtn:SetPoint("TOPRIGHT", SpellDraftBookFrame, "TOPRIGHT", -30, -8)
+    closeBtn:SetPoint("TOPRIGHT", SpellDraftBookFrame, "TOPRIGHT", -15, -12)
     closeBtn:SetScript("OnClick", function()
         SpellDraftBookFrame:Hide()
     end)
     
-    -- Title Text
+    -- Title Text (Left Page)
     grimoireTitleText = SpellDraftBookFrame:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-    grimoireTitleText:SetPoint("TOP", SpellDraftBookFrame, "TOP", 0, -18)
-    grimoireTitleText:SetText("SpellDraft Grimoire")
+    grimoireTitleText:SetPoint("TOPLEFT", SpellDraftBookFrame, "TOPLEFT", 22, -18)
+    grimoireTitleText:SetText("Passive Talents")
     
-    -- 3. Expanded Search Box
+    -- Title Text (Right Page)
+    local talentsTitleText = SpellDraftBookFrame:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    talentsTitleText:SetPoint("TOPLEFT", SpellDraftBookFrame, "TOPLEFT", 385, -18)
+    talentsTitleText:SetText("Active Spells")
+    
+    -- 3. Expanded Search Box (Tucked next to the right header)
     searchBox = CreateFrame("EditBox", "SpellDraftBookSearchBox", SpellDraftBookFrame, "InputBoxTemplate")
-    searchBox:SetSize(200, 20)
-    searchBox:SetPoint("TOPLEFT", SpellDraftBookFrame, "TOPLEFT", 80, -45)
+    searchBox:SetSize(170, 20)
+    searchBox:SetPoint("TOPLEFT", SpellDraftBookFrame, "TOPLEFT", 538, -15)
     searchBox:SetAutoFocus(false)
     
     local searchPlaceholder = searchBox:CreateFontString(nil, "ARTWORK", "GameFontDisable")
@@ -651,10 +692,10 @@ local function InitializeGrimoire()
         self:ClearFocus()
     end)
     
-    -- 5. Prev/Next Page Controls
+    -- 5. Prev/Next Page Controls (Shifted to Right Page)
     prevPageBtn = CreateFrame("Button", "SpellDraftBookPrevPageButton", SpellDraftBookFrame)
     prevPageBtn:SetSize(32, 32)
-    prevPageBtn:SetPoint("CENTER", SpellDraftBookFrame, "BOTTOMLEFT", 250, 42)
+    prevPageBtn:SetPoint("BOTTOMLEFT", SpellDraftBookFrame, "BOTTOMLEFT", 465, 16)
     prevPageBtn:SetNormalTexture("Interface\\Buttons\\UI-SpellbookIcon-PrevPage-Up")
     prevPageBtn:SetPushedTexture("Interface\\Buttons\\UI-SpellbookIcon-PrevPage-Down")
     prevPageBtn:SetDisabledTexture("Interface\\Buttons\\UI-SpellbookIcon-PrevPage-Disabled")
@@ -667,9 +708,13 @@ local function InitializeGrimoire()
         end
     end)
     
+    pageText = SpellDraftBookFrame:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    pageText:SetPoint("LEFT", prevPageBtn, "RIGHT", 15, 0)
+    pageText:SetText("Page 1 of 1")
+
     nextPageBtn = CreateFrame("Button", "SpellDraftBookNextPageButton", SpellDraftBookFrame)
     nextPageBtn:SetSize(32, 32)
-    nextPageBtn:SetPoint("LEFT", prevPageBtn, "RIGHT", 8, 0)
+    nextPageBtn:SetPoint("LEFT", pageText, "RIGHT", 15, 0)
     nextPageBtn:SetNormalTexture("Interface\\Buttons\\UI-SpellbookIcon-NextPage-Up")
     nextPageBtn:SetPushedTexture("Interface\\Buttons\\UI-SpellbookIcon-NextPage-Down")
     nextPageBtn:SetDisabledTexture("Interface\\Buttons\\UI-SpellbookIcon-NextPage-Disabled")
@@ -684,20 +729,15 @@ local function InitializeGrimoire()
         end
     end)
     
-    pageText = SpellDraftBookFrame:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-    pageText:SetPoint("RIGHT", prevPageBtn, "LEFT", -15, 0)
-    pageText:SetText("Page 1 of 1")
-    
-    -- 6. Create Standalone Custom Spell Slots Grid
+    -- 6. Create Standalone Custom Spell Slots Grid (Shifted to Right Page)
     for i = 1, 12 do
         local btn = CreateFrame("Button", "SpellDraftBookSpellButton" .. i, SpellDraftBookFrame, "SecureActionButtonTemplate")
         btn:SetSize(160, 44)
 
-        -- Two-column grid laid out inside the backdrop insets (frame is 384 wide).
         local col = (i - 1) % 2
         local row = math.floor((i - 1) / 2)
-        local x = 22 + col * 178
-        local y = -84 - row * 62
+        local x = 385 + col * 174
+        local y = -52 - row * 56
         btn:SetPoint("TOPLEFT", SpellDraftBookFrame, "TOPLEFT", x, y)
 
         -- Colored rarity frame: a solid square that peeks out ~2px around the icon.
@@ -772,13 +812,11 @@ local function InitializeGrimoire()
         buttons[i] = btn
     end
     
-    -- 7. Create Custom Class Tabs (Right Side)
+    -- 7. Create Custom Class Tabs (Right Side of Entire Book - spaced out more)
     for i, classInfo in ipairs(tabClasses) do
-        -- Native spellbook side-tab pattern: CheckButton + SkillLineTab art tucked
-        -- under the frame edge, checked glow for selection, ADD-blend hover.
         local tab = CreateFrame("CheckButton", "SpellDraftBookTab" .. i, SpellDraftBookFrame)
         tab:SetSize(32, 32)
-        tab:SetPoint("TOPLEFT", SpellDraftBookFrame, "TOPRIGHT", -3, -45 - (i - 1) * 38)
+        tab:SetPoint("TOPLEFT", SpellDraftBookFrame, "TOPRIGHT", -3, -30 - (i - 1) * 34)
 
         local bg = tab:CreateTexture(nil, "BACKGROUND")
         bg:SetSize(64, 64)
@@ -831,15 +869,12 @@ local function InitializeGrimoire()
     end
     tabs[1]:SetChecked(true)
     
-    -- 8. Setup Bottom Tabs
-    SetupBottomTabs()
-    
-    -- 9. Setup Refresh Hooks
+    -- 8. Setup Refresh Hooks
     SpellDraftBookFrame:SetScript("OnShow", function()
-        if SpellDraftBookFrame.selectedTab == 2 then
-            SpellDraft.ShowTalentsPanel()
-        else
-            SpellDraft.ShowGrimoirePanel()
+        SpellDraft.ShowGrimoirePanel()
+        SpellDraft.ShowTalentsPanel()
+        if SpellDraft.UpdateStatsDisplay then
+            SpellDraft.UpdateStatsDisplay()
         end
     end)
     
@@ -866,6 +901,9 @@ local function InitializeGrimoire()
         else
             if not self:IsShown() then return end
             SpellDraft.RefreshSpellBook()
+            if SpellDraft.UpdateStatsDisplay then
+                SpellDraft.UpdateStatsDisplay()
+            end
         end
     end)
 
@@ -880,12 +918,122 @@ local function InitializeGrimoire()
 end
 
 -- ----------------------------------------------------------------------------
+-- Microbar Launcher Button
+-- ----------------------------------------------------------------------------
+
+local openButton
+
+local function EnsureSavedVariables()
+    SpellDraftDB = SpellDraftDB or {}
+    SpellDraftDB.openButton = SpellDraftDB.openButton or {}
+end
+
+local function PositionOpenButton(useDefault)
+    if not openButton then return end
+    EnsureSavedVariables()
+    openButton:ClearAllPoints()
+    
+    local pos = SpellDraftDB.openButton
+    if not useDefault and pos.point and pos.relativePoint and pos.x and pos.y then
+        openButton:SetPoint(pos.point, UIParent, pos.relativePoint, pos.x, pos.y)
+    else
+        -- Default position: Anchor directly to the native WoW Spellbook MicroButton
+        -- This guarantees it aligns perfectly across all resolutions and UI scales.
+        if SpellbookMicroButton then
+            openButton:SetPoint("TOPLEFT", SpellbookMicroButton, "TOPLEFT", 0, 0)
+            openButton:SetPoint("BOTTOMRIGHT", SpellbookMicroButton, "BOTTOMRIGHT", 0, 0)
+        else
+            -- Fallback to your character Nix's calibrated coordinates
+            openButton:SetPoint("BOTTOM", UIParent, "BOTTOM", 72.9, 61.6)
+        end
+    end
+end
+
+local function SaveOpenButtonPosition()
+    if not openButton then return end
+    EnsureSavedVariables()
+    local point, _, relativePoint, x, y = openButton:GetPoint(1)
+    SpellDraftDB.openButton.point = point
+    SpellDraftDB.openButton.relativePoint = relativePoint
+    SpellDraftDB.openButton.x = x
+    SpellDraftDB.openButton.y = y
+end
+
+local function ResetOpenButtonPosition()
+    EnsureSavedVariables()
+    SpellDraftDB.openButton = {}
+    PositionOpenButton(true)
+    DEFAULT_CHAT_FRAME:AddMessage("|cff00ff00[SpellDraft]|r Button position reset.")
+end
+
+local function CreateOpenButton()
+    if openButton then return end
+    
+    openButton = CreateFrame("Button", "SpellDraftMicroButton", UIParent)
+    openButton:SetSize(32, 64) -- Match physical TGA dimensions
+    openButton:SetFrameStrata("HIGH")
+    openButton:SetFrameLevel(10)
+    openButton:SetMovable(true)
+    openButton:EnableMouse(true)
+    openButton:SetClampedToScreen(true)
+    openButton:RegisterForDrag("LeftButton")
+    
+    -- Set custom textures
+    openButton:SetNormalTexture("Interface\\AddOns\\SpellDraft\\Textures\\grimoire_btn_up")
+    openButton:SetPushedTexture("Interface\\AddOns\\SpellDraft\\Textures\\grimoire_btn_down")
+    
+    openButton:SetHighlightTexture("Interface\\Buttons\\UI-MicroButton-Hilight")
+    local highlight = openButton:GetHighlightTexture()
+    if highlight then
+        highlight:SetBlendMode("ADD")
+    end
+    
+    PositionOpenButton(false)
+    openButton:Show()
+    
+    openButton:SetScript("OnClick", function()
+        if not SpellDraftBookFrame then return end
+        if SpellDraftBookFrame:IsShown() then
+            SpellDraftBookFrame:Hide()
+        else
+            SpellDraftBookFrame:Show()
+        end
+    end)
+    
+    openButton:SetScript("OnDragStart", function(self)
+        self:StartMoving()
+    end)
+    openButton:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
+        SaveOpenButtonPosition()
+    end)
+    
+    openButton:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:SetText("SpellDraft Grimoire")
+        GameTooltip:AddLine("Click to toggle spellbook.", 1, 1, 1)
+        GameTooltip:AddLine("Drag with Left Click to reposition.", 0.6, 0.8, 1)
+        GameTooltip:Show()
+    end)
+    openButton:SetScript("OnLeave", function()
+        GameTooltip:Hide()
+    end)
+end
+
+-- ----------------------------------------------------------------------------
 -- Slash Command: /spelldraft
 -- ----------------------------------------------------------------------------
 
 SLASH_SPELLDRAFT1 = "/spelldraft"
 SlashCmdList["SPELLDRAFT"] = function(msg)
     if not SpellDraftBookFrame then DEFAULT_CHAT_FRAME:AddMessage("|cffff4444[SpellDraft]|r Grimoire not initialized yet.") return end
+    
+    msg = string.lower(msg or "")
+    if msg == "reset button" or msg == "resetbutton" or msg == "button reset" then
+        ResetOpenButtonPosition()
+        return
+    end
+
     if SpellDraftBookFrame:IsShown() then
         SpellDraftBookFrame:Hide()
     else
@@ -902,6 +1050,7 @@ initFrame:RegisterEvent("PLAYER_LOGIN")
 initFrame:SetScript("OnEvent", function(self, event)
     if event == "PLAYER_LOGIN" then
         InitializeGrimoire()
+        CreateOpenButton()
     end
 end)
 
