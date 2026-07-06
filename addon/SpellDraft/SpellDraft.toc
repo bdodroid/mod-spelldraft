@@ -10,3 +10,4 @@ SpellData_Talents.lua
 SpellChoice.lua
 SpellBook.lua
 PrestigeNameplates.lua
+ComboPoints.lua

@@ -109,7 +109,9 @@ We provide an automated script that performs all server-side staging, configurat
 
 ---
 
-### Option B: Manual Installation (Step-by-Step)
+<details>
+<summary><b>Option B: Manual Installation (Step-by-Step) - Click to expand</b></summary>
+
 If you prefer to perform the steps yourself, follow this sequence:
 
 1. **Place the module:** Clone or copy `mod-spelldraft` into your server's `/modules/` directory.
@@ -123,11 +125,48 @@ If you prefer to perform the steps yourself, follow this sequence:
 4. **Deploy DBC files:** Copy `dbc/*.dbc` into your server's runtime DBC directory:
    * **Docker:** Copy files directly into the named volume storage path on your host (e.g. `~/.local/share/containers/storage/volumes/wow-server-playerbots_ac-client-data/_data/dbc/`).
    * **Local:** Copy files into `/path/to/server/env/dist/data/dbc/`.
-5. **Rebuild server:** Compile the C++ module code:
+5. **Apply C++ core patch (Required for Combo Points):** Apply the C++ core patch to `Unit.cpp` to broadcast custom `SpellDraftCP` addon messages.
+
+   Here is the Python script:
+   ```python
+   # patch_unit.py
+   import sys
+   u = "../../src/server/game/Entities/Unit/Unit.cpp"
+   c = open(u, "r", encoding="utf-8").read()
+   t = "playerMe->SendDirectMessage(&data);"
+   r = t + """
+
+        // Send custom SpellDraft addon message for custom combo point rendering
+        std::string prefix = "SpellDraftCP";
+        std::string message = std::to_string(m_comboPoints);
+        std::string fullmsg = prefix + "\\t" + message;
+
+        WorldPacket addonData(SMSG_MESSAGECHAT, 100);
+        addonData << uint8(0); // CHAT_MSG_ADDON (Whisper/Normal channel context)
+        addonData << int32(LANG_ADDON);
+        addonData << playerMe->GetGUID();
+        addonData << uint32(0);
+        addonData << playerMe->GetGUID();
+        addonData << uint32(fullmsg.length() + 1);
+        addonData << fullmsg;
+        addonData << uint8(0);
+        playerMe->GetSession()->SendPacket(&addonData);"""
+
+   if t in c and "SpellDraftCP" not in c:
+       open(u, "w", encoding="utf-8").write(c.replace(t, r, 1))
+   ```
+
+   You can execute this patch directly from the `modules/mod-spelldraft/` directory in a single line:
+   ```bash
+   python3 -c 'import sys; u="../../src/server/game/Entities/Unit/Unit.cpp"; c=open(u,"r",encoding="utf-8").read(); t="playerMe->SendDirectMessage(&data);"; r=t+"\n\n        // Send custom SpellDraft addon message for custom combo point rendering\n        std::string prefix = \"SpellDraftCP\";\n        std::string message = std::to_string(m_comboPoints);\n        std::string fullmsg = prefix + \"\\t\" + message;\n\n        WorldPacket addonData(SMSG_MESSAGECHAT, 100);\n        addonData << uint8(0); // CHAT_MSG_ADDON (Whisper/Normal channel context)\n        addonData << int32(LANG_ADDON);\n        addonData << playerMe->GetGUID();\n        addonData << uint32(0);\n        addonData << playerMe->GetGUID();\n        addonData << uint32(fullmsg.length() + 1);\n        addonData << fullmsg;\n        addonData << uint8(0);\n        playerMe->GetSession()->SendPacket(&addonData);"; open(u,"w",encoding="utf-8").write(c.replace(t,r,1) if t in c and "SpellDraftCP" not in c else c)'
+   ```
+6. **Rebuild server:** Compile the C++ module code:
    * **Docker:** Rebuild the container: `docker compose build ac-worldserver` (or `docker compose up -d --build`).
    * **Local:** Run your local CMake and compilation toolchain.
-6. **Install client AddOn:** Copy `addon/SpellDraft` into your WoW client's `Interface/AddOns/SpellDraft/` folder.
-7. **Install client patch:** Copy `client/patch-P.mpq` into your WoW client's `data/` directory.
+7. **Install client AddOn:** Copy `addon/SpellDraft` into your WoW client's `Interface/AddOns/SpellDraft/` folder.
+8. **Install client patch:** Copy `client/patch-P.mpq` into your WoW client's `data/` directory.
+
+</details>
 
 ---
 

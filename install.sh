@@ -101,7 +101,58 @@ else
     echo "Please copy the contents of dbc/ manually into your server's Data/dbc/ folder."
 fi
 
-# ── 4. REBUILD WORLDSERVER IMAGE ───────────────────────────────
+# ── 4. PATCH CORE C++ FOR COMBO POINTS ──────────────────────────
+UNIT_CPP="$SERVER_DIR/src/server/game/Entities/Unit/Unit.cpp"
+if [ -f "$UNIT_CPP" ]; then
+    if ! grep -q "SpellDraftCP" "$UNIT_CPP"; then
+        echo "Patching Unit.cpp to support combo points for classless builds..."
+        python3 -c '
+import sys
+unit_cpp = sys.argv[1]
+with open(unit_cpp, "r", encoding="utf-8") as f:
+    content = f.read()
+
+target = "playerMe->SendDirectMessage(&data);"
+
+replacement = """playerMe->SendDirectMessage(&data);
+
+        // Send custom SpellDraft addon message for custom combo point rendering
+        std::string prefix = "SpellDraftCP";
+        std::string message = std::to_string(m_comboPoints);
+        std::string fullmsg = prefix + "\\t" + message;
+
+        WorldPacket addonData(SMSG_MESSAGECHAT, 100);
+        addonData << uint8(0); // CHAT_MSG_ADDON (Whisper/Normal channel context)
+        addonData << int32(LANG_ADDON);
+        addonData << playerMe->GetGUID();
+        addonData << uint32(0);
+        addonData << playerMe->GetGUID();
+        addonData << uint32(fullmsg.length() + 1);
+        addonData << fullmsg;
+        addonData << uint8(0);
+        playerMe->GetSession()->SendPacket(&addonData);"""
+
+if target in content:
+    content = content.replace(target, replacement, 1)
+    with open(unit_cpp, "w", encoding="utf-8") as f:
+        f.write(content)
+    print("Unit.cpp successfully patched.")
+else:
+    print("Error: Could not locate target block in Unit.cpp.")
+    sys.exit(1)
+' "$UNIT_CPP"
+        if [ $? -ne 0 ]; then
+            echo "Error: Failed to patch Unit.cpp. Aborting installation."
+            exit 1
+        fi
+    else
+        echo "Unit.cpp is already patched for SpellDraft combo points."
+    fi
+else
+    echo "Warning: Could not locate Unit.cpp at $UNIT_CPP. Skipping core patch."
+fi
+
+# ── 5. REBUILD WORLDSERVER IMAGE ───────────────────────────────
 if [ -f "$SERVER_DIR/docker-compose.yml" ]; then
     echo "---------------------------------------------"
     echo "Rebuilding worldserver container image to compile SpellDraft C++..."
