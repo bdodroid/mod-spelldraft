@@ -30,7 +30,10 @@ INSERT INTO `npc_vendor` (`entry`, `slot`, `item`, `maxcount`, `incrtime`, `Exte
 (99000, 11, 17032, 0, 0, 0),  -- Rune of Portals
 (99000, 12, 21841, 0, 0, 0),  -- Netherweave Bag (16 Slots)
 (99000, 13, 22243, 0, 0, 0),  -- Small Soul Pouch (12 Slots)
-(99000, 14, 21340, 0, 0, 0);  -- Soul Pouch (20 Slots)
+(99000, 14, 21340, 0, 0, 0),  -- Soul Pouch (20 Slots)
+(99000, 15, 2504, 0, 0, 0),   -- Worn Bow
+(99000, 16, 2512, 0, 0, 0);   -- Rough Arrow
+
 
 -- Set the BuyPrice of Soul Shards to 1 silver (100 copper) so they are not free
 UPDATE `item_template` SET `BuyPrice` = 100 WHERE `entry` = 6265;
@@ -58,7 +61,7 @@ INSERT INTO `gossip_menu_option` (`MenuID`, `OptionID`, `OptionIcon`, `OptionTex
 -- 7. Spawn the guides at all racial starting locations & major cities
 INSERT INTO `creature` (`id`, `map`, `position_x`, `position_y`, `position_z`, `orientation`) VALUES
 (99000, 0, -8910.15, -112.5, 81.85, 0.0),      -- Human (Northshire Abbey)
-(99000, 1, -615.0, -4254.0, 38.0, 5.0),          -- Orc / Troll (Valley of Trials)
+(99000, 1, -615.0, -4254.0, 39.1, 5.0),          -- Orc / Troll (Valley of Trials)
 (99000, 1, -2912.4, -263.1, 53.2, 3.2),          -- Tauren (Camp Narache)
 (99000, 0, 1662.67, 1672.0, 120.53, 2.7),        -- Undead (Deathknell)
 (99000, 0, -6240.8, 331.4, 382.7, 6.1),          -- Dwarf / Gnome (Anvilmar)

@@ -5200,4 +5200,8 @@ SpellDraftData = {
   [64901] = { rarity = 1, class = "PRIEST", name = "Hymn of Hope" },
   [65245] = { rarity = 99, class = "GENERAL", name = "Glyph of Survival Instincts" },
   [65454] = { rarity = 99, class = "GENERAL", name = "Bread of the Dead" },
+  [6603] = { rarity = 0, class = "GENERAL", name = "Attack" },
+  [75] = { rarity = 0, class = "GENERAL", name = "Auto Shot" },
+  [5019] = { rarity = 0, class = "GENERAL", name = "Shoot" },
+  [2764] = { rarity = 0, class = "GENERAL", name = "Throw" },
 }

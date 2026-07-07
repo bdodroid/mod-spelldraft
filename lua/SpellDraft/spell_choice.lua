@@ -13,7 +13,13 @@ local function IsBotPlayer(player)
     return player.IsBot ~= nil and player:IsBot()
 end
 
+local activeTalentDrafts = {}
+
 local function SendDraftChoices(player, spells)
+    local guid = player:GetGUIDLow()
+    local isTalent = (activeTalentDrafts and activeTalentDrafts[guid]) and "1" or "0"
+    player:SendAddonMessage("SpellChoiceIsTalent", isTalent, 0, player)
+
     player:SendAddonMessage("SpellChoice", table.concat(spells, ","), 0, player)
     local rarityParts = {}
     if #spells > 0 then
@@ -94,7 +100,7 @@ local draftingPlayers = {}
 function SpellDraft_SetSystemLearning(guid, active)
     draftingPlayers[guid] = active or nil
 end
-local activeTalentDrafts = {}
+activeTalentDrafts = {}
 local talentChains = {}
 local SyncDraftedTalents
 local BeginDraftLoop
@@ -313,8 +319,20 @@ local function CheckAndRestorePendingDraft(player)
     local s1 = res:GetUInt32(0)
     if s1 > 0 then
         local spells = {s1, res:GetUInt32(1), res:GetUInt32(2)}
-        local check = WorldDBQuery("SELECT 1 FROM dbc_spells WHERE Id = " .. s1 .. " AND (Attributes & 0x00000040) != 0")
-        if check then
+        local isTalent = true
+        local count = 0
+        for _, id in ipairs(spells) do
+            if id > 0 then
+                count = count + 1
+                local inChains = (talentChains and talentChains[id]) ~= nil
+                if not inChains then
+                    isTalent = false
+                end
+            end
+        end
+        if count == 0 then isTalent = false end
+
+        if isTalent then
             activeTalentDrafts[guid] = true
         else
             activeTalentDrafts[guid] = nil

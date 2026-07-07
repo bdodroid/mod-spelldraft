@@ -5,6 +5,13 @@
 SpellDraft = SpellDraft or {}
 local DEBUG = false
 
+local FALLBACK_SPELLS = {
+    [75] = { name = "Auto Shot", icon = "Interface\\Icons\\Ability_Marksmanship", subName = "" },
+    [5019] = { name = "Shoot", icon = "Interface\\Icons\\Ability_ShootWand", subName = "" },
+    [2764] = { name = "Throw", icon = "Interface\\Icons\\Ability_Throw", subName = "" },
+    [6603] = { name = "Attack", icon = "Interface\\Icons\\INV_Sword_04", subName = "" }
+}
+
 -- Rarity Mapping Details
 local RARITY_NAMES = {
     [0] = "Common",
@@ -251,6 +258,7 @@ function SpellDraft.RefreshSpellBook()
             
             -- WotLK API: Get texture from GetSpellInfo
             local _, _, iconTexture = GetSpellInfo(spell.spellId)
+            iconTexture = iconTexture or (FALLBACK_SPELLS[spell.spellId] and FALLBACK_SPELLS[spell.spellId].icon) or "Interface\\Icons\\INV_Misc_QuestionMark"
             btn.icon:SetTexture(iconTexture)
             
             -- Color native ActionButton-Border based on spell rarity (gold for innate racials)

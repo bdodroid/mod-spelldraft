@@ -194,6 +194,12 @@ To apply the changes, reload the Eluna scripting engine in-game or restart your 
 * **Reload Eluna (No Downtime):** Type `.eluna reload` in-game as a GM to immediately hot-reload the updated scripts. Affected players will just need to log out and back in to apply the updates.
 * **Server Reboot:** Restart your worldserver container or process (e.g. `podman restart ac-worldserver` or `docker compose restart ac-worldserver`).
 
+### 4. Update the Client Addon
+Since updates may contain client-side fixes, copy the updated Addon files to your local game client:
+* **Copy AddOn:** Copy the contents of `addon/SpellDraft/` to your WoW client's `Interface/AddOns/SpellDraft/` directory, overwriting the old files.
+* **Reload UI:** In-game, type `/reload` in the chat window to load the new AddOn layout.
+
+
 ---
 
 ## Configuration File Parameters

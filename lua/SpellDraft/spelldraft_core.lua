@@ -141,6 +141,7 @@ local function EnsurePrestigeEntry(_, player)
                     196, 197, 198, 199, 201, 202,    -- Axes, Maces, Swords (1H+2H)
                     227, 1180, 200, 15590,           -- Staves, Daggers, Polearms, Fists
                     264, 5011, 266, 2567, 5009, 107, -- Bows, Xbows, Guns, Thrown, Wands, Block
+                    75, 5019, 2764,                  -- Auto Shot, Shoot, Throw
                 }
                 for _, sid in ipairs(proficiencies) do
                     if not p:HasSpell(sid) then
@@ -195,6 +196,23 @@ local function EnsurePrestigeEntry(_, player)
             VALUES (%d, 0, 1, %d, %d, %d, %d)
         ]], guid, class, startingDrafts, CONFIG.DRAFT_MODE_REROLLS, CONFIG.DRAFT_BANS_START))
 
+        -- Custom Mage Race starting gear injection
+        if class == 8 then
+            local race = player:GetRace()
+            if race == 2 or race == 4 or race == 6 then
+                player:AddItem(45, 1)    -- Squire's Shirt
+                player:AddItem(39, 1)    -- Recruit's Pants
+                player:AddItem(55, 1)    -- Apprentice's Boots
+                player:AddItem(35, 1)    -- Bent Staff
+                player:AddItem(159, 5)   -- Refreshing Spring Water
+                
+                player:EquipItem(45, 3)
+                player:EquipItem(39, 6)
+                player:EquipItem(55, 7)
+                player:EquipItem(35, 15)
+            end
+        end
+
         draftStateCache[guid] = true
 
         CreateLuaEvent(function()
@@ -248,6 +266,9 @@ local function EnsurePrestigeEntry(_, player)
                 2567,   -- Thrown
                 5009,   -- Wands
                 107,    -- Block (Shield use)
+                75,     -- Auto Shot
+                5019,   -- Shoot
+                2764,   -- Throw
             }
             for _, spellId in ipairs(proficiencies) do
                 if not p:HasSpell(spellId) then

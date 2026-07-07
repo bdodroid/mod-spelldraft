@@ -50,6 +50,7 @@ local rarityTextures = {
 local lastSpellIDs = {}
 local dismissToggled = false
 local restoringFromDismiss = false
+local isTalentDraftActive = false
 local bannedSpells = {}
 local currentSpellRarities = {}
 tooltip:SetOwner(UIParent, "ANCHOR_NONE")
@@ -158,6 +159,24 @@ end
 
 -- Show spell choices to the player
 local function ShowSpellChoices(spellIDs)
+
+  if UnitAffectingCombat("player") and UnitLevel("player") > 1 then
+    dismissToggled = true
+    if SpellDraftDB then
+      SpellDraftDB.dismissToggled = true
+    end
+    if SpellChoiceDismissButton then
+      local btnText = isTalentDraftActive and "Talent Draft" or ((SpellDraft.DraftsLeft or 0) .. " Draft(s) Left")
+      SpellChoiceDismissButton:SetText(btnText)
+      SpellChoiceDismissButton:SetParent(UIParent)
+      SpellChoiceDismissButton:ClearAllPoints()
+      SpellChoiceDismissButton:SetPoint("CENTER", UIParent, "CENTER", 0, -300)
+      SpellChoiceDismissButton:SetFrameStrata("FULLSCREEN_DIALOG")
+      SpellChoiceDismissButton:EnableMouse(true)
+      SpellChoiceDismissButton:Show()
+    end
+  end
+
   if dismissToggled then
     -- Full suppression: disable everything interactable
     for _, btn in ipairs(buttons) do
@@ -178,6 +197,17 @@ local function ShowSpellChoices(spellIDs)
     return
   end
 
+  -- Restore clean UI state from minimized/dismissed state
+  SpellChoiceFrame:SetAlpha(1)
+  SpellChoiceFrame:EnableMouse(true)
+  if SpellChoiceDismissButton then
+    SpellChoiceDismissButton:SetParent(SpellChoiceFrame)
+    SpellChoiceDismissButton:ClearAllPoints()
+    SpellChoiceDismissButton:SetPoint("CENTER", SpellChoiceTitle, "TOP", 0, -290)
+    SpellChoiceDismissButton:SetFrameStrata("FULLSCREEN_DIALOG")
+    SpellChoiceDismissButton:SetText("Dismiss")
+  end
+
   --print("SpellChoiceTitle is", SpellChoiceTitle and "found" or "MISSING")
   if not unlocked then
     --Debug("Blocked: Player is not prestiged.")
@@ -191,12 +221,24 @@ local function ShowSpellChoices(spellIDs)
 
   --Debug("Showing spell choices...")
 
+local FALLBACK_SPELLS = {
+  [75] = { name = "Auto Shot", icon = "Interface\\Icons\\Ability_Marksmanship", subName = "" },
+  [5019] = { name = "Shoot", icon = "Interface\\Icons\\Ability_ShootWand", subName = "" },
+  [2764] = { name = "Throw", icon = "Interface\\Icons\\Ability_Throw", subName = "" },
+  [6603] = { name = "Attack", icon = "Interface\\Icons\\INV_Sword_04", subName = "" }
+}
+
   for i = 1, #buttons do
     local spellID = tonumber(spellIDs[i])
     local btn = buttons[i]
 
     if spellID and btn then
       local name, subName, icon = GetSpellInfo(spellID)
+      if (not name or not icon) and FALLBACK_SPELLS[spellID] then
+        name = name or FALLBACK_SPELLS[spellID].name
+        icon = icon or FALLBACK_SPELLS[spellID].icon
+        subName = subName or FALLBACK_SPELLS[spellID].subName
+      end
 
       btn.icon        = _G[btn:GetName() .. "Icon"]
       btn.name        = _G[btn:GetName() .. "Name"]
@@ -317,6 +359,14 @@ local function ShowSpellChoices(spellIDs)
     end
   end
 
+  if isTalentDraftActive then
+    if SpellChoiceRerollButton then SpellChoiceRerollButton:Hide() end
+    if SpellChoiceBanButton then SpellChoiceBanButton:Hide() end
+  else
+    if SpellChoiceRerollButton then SpellChoiceRerollButton:Show() end
+    if SpellChoiceBanButton then SpellChoiceBanButton:Show() end
+  end
+
   frame:Show()
 end
 
@@ -326,6 +376,7 @@ local eventFrame = CreateFrame("Frame")
 eventFrame:RegisterEvent("CHAT_MSG_ADDON")
 eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 eventFrame:RegisterEvent("ADDON_LOADED")
+eventFrame:RegisterEvent("PLAYER_REGEN_DISABLED")
 
 local enterTime = nil
 local isWorldLoaded = false
@@ -404,6 +455,9 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1, arg2, arg3, arg4)
       end
       if SpellDraft.UpdateHUD then SpellDraft.UpdateHUD() end
 
+    elseif prefix == "SpellChoiceIsTalent" then
+      isTalentDraftActive = (message == "1")
+
     elseif prefix == "SpellChoiceBansLeft" then
       bansLeft = tonumber(message) or 0
       SpellDraft.BansLeft = bansLeft
@@ -469,6 +523,10 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1, arg2, arg3, arg4)
 
       -- If we got here, it's a new set
       lastSpellIDs = spellIDs
+      dismissToggled = false
+      if SpellDraftDB then
+        SpellDraftDB.dismissToggled = false
+      end
       Delay(0.5, function()
         ShowSpellChoices(spellIDs)
       end)
@@ -533,6 +591,17 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1, arg2, arg3, arg4)
         elseif rarityFrame then
           -- Rarity is -1 or invalid (NULL or missing)
           rarityFrame:Hide()
+        end
+      end
+    end
+  elseif event == "PLAYER_REGEN_DISABLED" then
+    -- Auto-minimize choice frame on entering combat (only for level > 1)
+    if UnitLevel("player") > 1 and not dismissToggled and SpellChoiceFrame:IsShown() then
+      local dismissBtn = SpellChoiceDismissButton
+      if dismissBtn then
+        local onClick = dismissBtn:GetScript("OnClick")
+        if onClick then
+          onClick(dismissBtn)
         end
       end
     end
@@ -633,9 +702,15 @@ SpellChoiceDismissButton:SetScript("OnClick", function(self)
     end
 
     if dismissToggled then
-        local label = SpellChoiceTitle:GetText() or ""
-        local count = label:match("(%d+)") or "0"
-        self:SetText(count .. " Draft(s) Left")
+        local btnText
+        if isTalentDraftActive then
+            btnText = "Talent Draft"
+        else
+            local label = SpellChoiceTitle:GetText() or ""
+            local count = label:match("(%d+)") or "0"
+            btnText = count .. " Draft(s) Left"
+        end
+        self:SetText(btnText)
 
         for _, btn in ipairs(buttons) do
             btn:Hide()
