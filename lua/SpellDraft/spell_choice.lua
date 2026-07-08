@@ -128,14 +128,49 @@ local blacklistedSpellIds = {
     [42231] = true, -- Hurricane (Damage Trigger)
 }
 
+local talentIdToChain = {}
+local LOCKED_TALENTS = {
+    -- DEATHKNIGHT (21)
+    [61154] = true, [49028] = true, [55050] = true, [49016] = true, [49005] = true, [48982] = true, [55233] = true, [49189] = true,
+    [49796] = true, [49143] = true, [49184] = true, [49203] = true, [49039] = true, [51271] = true, [51052] = true, [49222] = true,
+    [49158] = true, [63560] = true, [49146] = true, [55090] = true, [49206] = true,
+    -- DRUID (14)
+    [33831] = true, [5570] = true, [24858] = true, [48505] = true, [50516] = true, [50334] = true, [49377] = true, [33917] = true,
+    [37116] = true, [61336] = true, [17116] = true, [18562] = true, [65139] = true, [48438] = true,
+    -- HUNTER (13)
+    [53270] = true, [19574] = true, [19577] = true, [19434] = true, [53209] = true, [23989] = true, [34490] = true, [19506] = true,
+    [3674] = true, [19306] = true, [53301] = true, [19503] = true, [19386] = true,
+    -- MAGE (16)
+    [44425] = true, [12042] = true, [54646] = true, [12043] = true, [31589] = true, [11113] = true, [11129] = true, [31661] = true,
+    [64353] = true, [44457] = true, [11366] = true, [11958] = true, [44572] = true, [11426] = true, [12472] = true, [31687] = true,
+    -- PALADIN (14)
+    [31821] = true, [53563] = true, [20216] = true, [31842] = true, [20473] = true, [31935] = true, [20911] = true, [64205] = true,
+    [53595] = true, [20925] = true, [35395] = true, [53385] = true, [20066] = true, [20375] = true,
+    -- PRIEST (15)
+    [14751] = true, [33206] = true, [47540] = true, [10060] = true, [34861] = true, [19236] = true, [47788] = true, [724] = true,
+    [47585] = true, [15407] = true, [64044] = true, [15473] = true, [15487] = true, [15286] = true, [34914] = true,
+    -- ROGUE (13)
+    [14177] = true, [51662] = true, [1329] = true, [13750] = true, [13877] = true, [51690] = true, [14251] = true, [14278] = true,
+    [16511] = true, [14183] = true, [14185] = true, [51713] = true, [36554] = true,
+    -- SHAMAN (15)
+    [16166] = true, [51490] = true, [30706] = true, [30798] = true, [51533] = true, [60103] = true, [30823] = true, [16268] = true,
+    [17364] = true, [51886] = true, [974] = true, [16190] = true, [16188] = true, [61295] = true, [55198] = true,
+    -- WARLOCK (13)
+    [18223] = true, [18220] = true, [48181] = true, [30108] = true, [47193] = true, [18708] = true, [59672] = true, [19028] = true,
+    [30146] = true, [50796] = true, [17962] = true, [17877] = true, [30283] = true,
+    -- WARRIOR (13)
+    [46924] = true, [12294] = true, [12328] = true, [23881] = true, [12292] = true, [60970] = true, [12323] = true, [46917] = true,
+    [12809] = true, [20243] = true, [12975] = true, [46968] = true, [50720] = true,
+}
+
 local function LoadTalentChains()
     local query = WorldDBQuery([[
         SELECT ID, TierID, SpellRank_1, SpellRank_2, SpellRank_3, SpellRank_4,
-               SpellRank_5, SpellRank_6, SpellRank_7, SpellRank_8, SpellRank_9
+               SpellRank_5, SpellRank_6, SpellRank_7, SpellRank_8, SpellRank_9,
+               PrereqTalent_1, PrereqRank_1, PrereqTalent_2, PrereqRank_2, PrereqTalent_3, PrereqRank_3
           FROM talent_dbc
     ]])
     if not query then return end
-    
     local count = 0
     repeat
         local talentId = query:GetInt32(0)
@@ -150,7 +185,18 @@ local function LoadTalentChains()
         
         if #ranks > 0 then
             count = count + 1
-            local chain = { talentId = talentId, tierId = tierId, ranks = ranks }
+            local prereqs = {}
+            for k = 11, 15, 2 do
+                local pTalent = query:GetInt32(k)
+                local pRank = query:GetInt32(k+1)
+                if pTalent > 0 then
+                    table.insert(prereqs, { prereqTalentId = pTalent, reqRank = pRank + 1 })
+                end
+            end
+            
+            local chain = { talentId = talentId, tierId = tierId, ranks = ranks, prereqs = prereqs }
+            talentIdToChain[talentId] = chain
+            
             for rankIndex, spellId in ipairs(ranks) do
                 talentChains[spellId] = {
                     talentId = talentId,
@@ -162,6 +208,7 @@ local function LoadTalentChains()
             end
         end
     until not query:NextRow()
+
     print("[SpellChoice] Loaded " .. tostring(count) .. " talent chains from talent_dbc.")
 end
 
@@ -208,11 +255,13 @@ local function GetEligibleTalentsPool(player, level)
         end
     end
     
-    -- 4. Filter nextRankSpells by level requirements directly using their tier
+    -- 4. Filter nextRankSpells by level requirements directly using their tier.
+    -- The Tome pool is restricted to the locked actives/playstyle passives; all
+    -- other (passive) talents are bought with custom Talent Points instead.
     local pool = {}
     for spellId, _ in pairs(nextRankSpells) do
         local info = talentChains[spellId]
-        if info then
+        if info and LOCKED_TALENTS[info.ranks[1]] then
             local reqLevel = 10 + info.tierId * 5
             if reqLevel <= queryLevel then
                 if not blacklistedSpellIds[spellId] and not knownSpells[spellId] then
@@ -499,6 +548,7 @@ local function LoadValidSpellChoices(player, maxLevel)
                 }
 
                 if not isBlacklistedSpellId(spellId)
+                   and not talentChains[spellId] -- EXCLUDE TALENTS FROM NORMAL ACTIVE DRAFTS
                    and spell.desc ~= ''
                    and spell.name ~= ''
                    and spell.iconId > 1
@@ -828,6 +878,12 @@ local function OnAddonWhisper(event, player, msg, msgType, lang, receiver)
             return false
         end
         limit.count = limit.count + 1
+    end
+
+    local buySpellId = tonumber(msg:match("^SC_BUY_TALENT:(%d+)"))
+    if buySpellId then
+        HandleBuyTalent(player, buySpellId)
+        return false
     end
 
     -- Handle SC_CHECK (client re-checks prestige)    
@@ -1253,7 +1309,9 @@ SyncDraftedTalents = function(player, extraSpellId)
     local guid = player:GetGUIDLow()
     local query = CharDBQuery(string.format([[
         SELECT spell_id FROM drafted_spells WHERE player_guid = %d
-    ]], guid))
+        UNION
+        SELECT spell_id FROM manually_acquired_talents WHERE player_guid = %d
+    ]], guid, guid))
 
     local excludeSpells = {}
     if extraSpellId then
@@ -1304,6 +1362,7 @@ local function OnLogin(event, player)
     player:SetAcceptWhispers(true)
     CONFIG.EnsurePlayerLanguage(player)
     SyncDraftedTalents(player)
+    SyncTalentPoints(player)
     local guid = player:GetGUIDLow()
 
     -- Self-healing: restore any drafted spells that might have been accidentally removed/lost
@@ -1798,5 +1857,241 @@ RegisterPlayerEvent(18, function(event, player, msg, type, lang)
         return false
     end
 end)
+
+function SyncTalentPoints(player)
+    local guid = player:GetGUIDLow()
+    local q = CharDBQuery("SELECT talent_points FROM prestige_stats WHERE player_id = " .. guid)
+    if q then
+        player:SendAddonMessage("SpellChoiceTalentPoints", tostring(q:GetUInt32(0)), 0, player)
+    else
+        player:SendAddonMessage("SpellChoiceTalentPoints", "0", 0, player)
+    end
+end
+
+-- Resolve a spell's display name across mod-ale variants (GetSpellInfo returns
+-- a SpellInfo object on this core, not a name string)
+local function GetSpellNameSafe(spellId)
+    if type(GetSpellName) == "function" then
+        local ok, name = pcall(GetSpellName, spellId)
+        if ok and type(name) == "string" then return name end
+    end
+    if type(GetSpellInfo) == "function" then
+        local ok, info = pcall(GetSpellInfo, spellId)
+        if ok then
+            if type(info) == "string" then return info end
+            if info and info.GetName then
+                local ok2, name = pcall(info.GetName, info)
+                if ok2 and type(name) == "string" then return name end
+            end
+        end
+    end
+    return "Spell " .. tostring(spellId)
+end
+
+-- Draft-state check (each Eluna file is its own chunk; core's helper is file-local)
+local function IsPlayerInDraft(player)
+    local query = CharDBQuery("SELECT draft_state FROM prestige_stats WHERE player_id = " .. player:GetGUIDLow())
+    return (query and query:GetUInt32(0) == 1) or false
+end
+
+local function MeetsPrerequisites(player, chain)
+    -- 1. Check Level requirement based on Shifted Tier Gating (A.1)
+    local level = player:GetLevel()
+    local reqLevel = 1
+    if chain.tierId > 0 then
+        reqLevel = chain.tierId * 5
+    end
+    if level < reqLevel then
+        return false, "Requires level " .. reqLevel
+    end
+    
+    -- 2. Check parent prerequisites
+    for _, pre in ipairs(chain.prereqs) do
+        local parentChain = talentIdToChain[pre.prereqTalentId]
+        if parentChain then
+            local parentRank = 0
+            for rankIndex, spellId in ipairs(parentChain.ranks) do
+                if player:HasSpell(spellId) then
+                    parentRank = rankIndex
+                end
+            end
+            if parentRank < pre.reqRank then
+                local parentSpellName = GetSpellNameSafe(parentChain.ranks[1])
+                return false, "Requires " .. pre.reqRank .. " ranks in " .. parentSpellName
+            end
+        end
+    end
+    
+    return true
+end
+
+-- Global: referenced by OnAddonWhisper, which is compiled earlier in this file
+function HandleBuyTalent(player, spellId)
+    local guid = player:GetGUIDLow()
+    if not IsPlayerInDraft(player) then
+        player:SendBroadcastMessage("You are not in Draft Mode.")
+        return
+    end
+    if player:IsInCombat() then
+        player:SendBroadcastMessage("You cannot purchase talents in combat.")
+        return
+    end
+
+    -- 1. Verify player has talent points
+    local qPoints = CharDBQuery("SELECT talent_points FROM prestige_stats WHERE player_id = " .. guid)
+    if not qPoints or qPoints:GetUInt32(0) <= 0 then
+        player:SendBroadcastMessage("You have no custom Talent Points to spend.")
+        return
+    end
+    local currentPoints = qPoints:GetUInt32(0)
+
+    -- 2. Verify the spell is a valid talent and find its chain info
+    local chainInfo = talentChains[spellId]
+    if not chainInfo then
+        player:SendBroadcastMessage("Invalid talent spell.")
+        return
+    end
+    
+    -- 3. Check if the talent is locked (active/playstyle)
+    if LOCKED_TALENTS[spellId] or LOCKED_TALENTS[chainInfo.ranks[1]] then
+        player:SendBroadcastMessage("This talent is locked and can only be acquired from a Tome of Talents.")
+        return
+    end
+
+    -- 4. Get player's current rank of this talent
+    local currentRankIndex = 0
+    for rankIndex, rSpellId in ipairs(chainInfo.ranks) do
+        if player:HasSpell(rSpellId) then
+            currentRankIndex = rankIndex
+        end
+    end
+
+    if currentRankIndex >= #chainInfo.ranks then
+        player:SendBroadcastMessage("You have already mastered this talent.")
+        return
+    end
+
+    -- 5. Check prerequisites
+    local allowed, errMsg = MeetsPrerequisites(player, chainInfo.chain)
+    if not allowed then
+        player:SendBroadcastMessage("|cffff0000Cannot learn: " .. errMsg .. "|r")
+        return
+    end
+
+    local nextRankIndex = currentRankIndex + 1
+    local nextSpellId = chainInfo.ranks[nextRankIndex]
+
+    -- 6. Deduct talent point and insert/update manually_acquired_talents.
+    -- CharDBQuery is synchronous, so the SyncTalentPoints read below can't race it.
+    CharDBQuery("UPDATE prestige_stats SET talent_points = talent_points - 1 WHERE player_id = " .. guid)
+    
+    if currentRankIndex > 0 then
+        local prevSpellId = chainInfo.ranks[currentRankIndex]
+        CharDBExecute(string.format("DELETE FROM manually_acquired_talents WHERE player_guid = %d AND spell_id = %d", guid, prevSpellId))
+        
+        draftingPlayers[guid] = true
+        player:RemoveSpell(prevSpellId)
+        draftingPlayers[guid] = nil
+        CharDBExecute(string.format("DELETE FROM character_spell WHERE guid = %d AND spell = %d", guid, prevSpellId))
+    end
+
+    CharDBExecute(string.format("INSERT INTO manually_acquired_talents (player_guid, spell_id) VALUES (%d, %d)", guid, nextSpellId))
+    
+    -- Teach next rank to player
+    draftingPlayers[guid] = true
+    player:LearnSpell(nextSpellId)
+    draftingPlayers[guid] = nil
+
+    player:CastSpell(player, 24312, true)
+    player:RemoveAura(24312)
+
+    -- Sync stats and talents to client
+    SyncTalentPoints(player)
+    SyncDraftedTalents(player, nextSpellId)
+    
+    player:SendBroadcastMessage(string.format("|cff00ff00Learned %s (Rank %d)|r", GetSpellNameSafe(nextSpellId), nextRankIndex))
+end
+
+function ResetCustomTalents(player)
+    local guid = player:GetGUIDLow()
+    local q = CharDBQuery("SELECT spell_id FROM manually_acquired_talents WHERE player_guid = " .. guid)
+    local refund_points = 0
+    local manual_spells = {}
+    
+    if q then
+        repeat
+            table.insert(manual_spells, q:GetUInt32(0))
+        until not q:NextRow()
+    end
+    
+    -- Disable anti-cheat while we modify spells
+    if type(SpellDraft_SetSystemLearning) == "function" then
+        SpellDraft_SetSystemLearning(guid, true)
+    end
+
+    -- Clear native talent state FIRST: ResetTalents can strip known talent spells,
+    -- so it must run before any drafted ranks are restored below.
+    player:ResetTalents(true)
+    player:SetFreeTalentPoints(0)
+
+    for _, spellId in ipairs(manual_spells) do
+        local chainInfo = talentChains[spellId]
+        if chainInfo then
+            local R_purchased = chainInfo.rankIndex
+
+            -- Find if player drafted a rank in this chain
+            local R_drafted = 0
+            for rankIndex, rSpellId in ipairs(chainInfo.ranks) do
+                local qD = CharDBQuery(string.format("SELECT 1 FROM drafted_spells WHERE player_guid = %d AND spell_id = %d", guid, rSpellId))
+                if qD then
+                    R_drafted = rankIndex
+                end
+            end
+
+            local spent = R_purchased - R_drafted
+            if spent > 0 then
+                refund_points = refund_points + spent
+            end
+
+            -- Remove current manual spell
+            draftingPlayers[guid] = true
+            player:RemoveSpell(spellId)
+            draftingPlayers[guid] = nil
+            CharDBExecute(string.format("DELETE FROM character_spell WHERE guid = %d AND spell = %d", guid, spellId))
+        end
+    end
+
+    -- Wipe manual talents table
+    CharDBExecute("DELETE FROM manually_acquired_talents WHERE player_guid = " .. guid)
+
+    -- Update talent points in DB (synchronous so the sync below reads fresh)
+    CharDBQuery("UPDATE prestige_stats SET talent_points = talent_points + " .. refund_points .. " WHERE player_id = " .. guid)
+
+    -- Restore every drafted spell the player is missing (drafted ranks that were
+    -- superseded by purchases, plus anything ResetTalents stripped). Mirrors the
+    -- on-login self-heal so draft rewards always survive the reset.
+    local qDrafted = CharDBQuery("SELECT spell_id FROM drafted_spells WHERE player_guid = " .. guid)
+    if qDrafted then
+        repeat
+            local draftedSpellId = qDrafted:GetUInt32(0)
+            if not player:HasSpell(draftedSpellId) then
+                draftingPlayers[guid] = true
+                player:LearnSpell(draftedSpellId)
+                draftingPlayers[guid] = nil
+            end
+        until not qDrafted:NextRow()
+    end
+
+    -- Enable anti-cheat back
+    if type(SpellDraft_SetSystemLearning) == "function" then
+        SpellDraft_SetSystemLearning(guid, false)
+    end
+    
+    -- Sync
+    SyncTalentPoints(player)
+    SyncDraftedTalents(player)
+    
+    return refund_points
+end
 
 

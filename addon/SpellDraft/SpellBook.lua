@@ -96,6 +96,61 @@ local rerollsText
 local bansText
 local draftsText
 
+local LOCKED_TALENTS = {
+    -- DEATHKNIGHT (21)
+    [61154] = true, [49028] = true, [55050] = true, [49016] = true, [49005] = true, [48982] = true, [55233] = true, [49189] = true,
+    [49796] = true, [49143] = true, [49184] = true, [49203] = true, [49039] = true, [51271] = true, [51052] = true, [49222] = true,
+    [49158] = true, [63560] = true, [49146] = true, [55090] = true, [49206] = true,
+    -- DRUID (14)
+    [33831] = true, [5570] = true, [24858] = true, [48505] = true, [50516] = true, [50334] = true, [49377] = true, [33917] = true,
+    [37116] = true, [61336] = true, [17116] = true, [18562] = true, [65139] = true, [48438] = true,
+    -- HUNTER (13)
+    [53270] = true, [19574] = true, [19577] = true, [19434] = true, [53209] = true, [23989] = true, [34490] = true, [19506] = true,
+    [3674] = true, [19306] = true, [53301] = true, [19503] = true, [19386] = true,
+    -- MAGE (16)
+    [44425] = true, [12042] = true, [54646] = true, [12043] = true, [31589] = true, [11113] = true, [11129] = true, [31661] = true,
+    [64353] = true, [44457] = true, [11366] = true, [11958] = true, [44572] = true, [11426] = true, [12472] = true, [31687] = true,
+    -- PALADIN (14)
+    [31821] = true, [53563] = true, [20216] = true, [31842] = true, [20473] = true, [31935] = true, [20911] = true, [64205] = true,
+    [53595] = true, [20925] = true, [35395] = true, [53385] = true, [20066] = true, [20375] = true,
+    -- PRIEST (15)
+    [14751] = true, [33206] = true, [47540] = true, [10060] = true, [34861] = true, [19236] = true, [47788] = true, [724] = true,
+    [47585] = true, [15407] = true, [64044] = true, [15473] = true, [15487] = true, [15286] = true, [34914] = true,
+    -- ROGUE (13)
+    [14177] = true, [51662] = true, [1329] = true, [13750] = true, [13877] = true, [51690] = true, [14251] = true, [14278] = true,
+    [16511] = true, [14183] = true, [14185] = true, [51713] = true, [36554] = true,
+    -- SHAMAN (15)
+    [16166] = true, [51490] = true, [30706] = true, [30798] = true, [51533] = true, [60103] = true, [30823] = true, [16268] = true,
+    [17364] = true, [51886] = true, [974] = true, [16190] = true, [16188] = true, [61295] = true, [55198] = true,
+    -- WARLOCK (13)
+    [18223] = true, [18220] = true, [48181] = true, [30108] = true, [47193] = true, [18708] = true, [59672] = true, [19028] = true,
+    [30146] = true, [50796] = true, [17962] = true, [17877] = true, [30283] = true,
+    -- WARRIOR (13)
+    [46924] = true, [12294] = true, [12328] = true, [23881] = true, [12292] = true, [60970] = true, [12323] = true, [46917] = true,
+    [12809] = true, [20243] = true, [12975] = true, [46968] = true, [50720] = true,
+}
+
+-- 3.3.5-safe lock texture: SetTexture returns nil for missing files, so try
+-- known-good paths in order and keep the first one that loads.
+local function ApplyLockTexture(tex)
+    if tex:SetTexture("Interface\\LFGFrame\\UI-LFG-ICON-LOCK") then
+        tex:SetTexCoord(0, 0.71875, 0, 0.875)
+        return
+    end
+    tex:SetTexCoord(0, 1, 0, 1)
+    if not tex:SetTexture("Interface\\Buttons\\LockButton-Locked-Up") then
+        tex:SetTexture("Interface\\Icons\\INV_Misc_Key_03")
+    end
+end
+
+-- Shifted tier gating: Tier 0 unlocks at level 1, Tier N at level N*5
+local function GetTalentReqLevel(talent)
+    if talent.row and talent.row > 0 then
+        return talent.row * 5
+    end
+    return 1
+end
+
 -- ----------------------------------------------------------------------------
 -- Scanner, Rank Consolidation, and Refresh Logic (WotLK 3.3.5a Compatible)
 -- ----------------------------------------------------------------------------
@@ -357,15 +412,25 @@ local function RecalculateTalentRanks()
         currentRanks[spellId] = 0
     end
     
-    -- Count ranks from player's drafted talents
+    -- Derive ranks from player's synced talents via the generated rank map
+    -- (talent names collide across classes, e.g. Rogue/Warrior "Deflection",
+    -- so name lookups are only a fallback). The server sends the highest
+    -- known rank per talent.
     if SpellDraft.DraftedTalents then
         for _, spellId in ipairs(SpellDraft.DraftedTalents) do
-            local name = GetSpellInfo(spellId)
-            if name then
-                local firstRankSpellId = LocalizedNameToSpellId[name]
-                if firstRankSpellId then
-                    currentRanks[firstRankSpellId] = currentRanks[firstRankSpellId] + 1
+            local firstRankSpellId, rankNum
+            local mapped = SpellDraftTalentRankMap and SpellDraftTalentRankMap[spellId]
+            if mapped then
+                firstRankSpellId, rankNum = mapped[1], mapped[2]
+            else
+                local name, rankText = GetSpellInfo(spellId)
+                if name then
+                    firstRankSpellId = LocalizedNameToSpellId[name]
+                    rankNum = tonumber(rankText and rankText:match("%d+")) or 1
                 end
+            end
+            if firstRankSpellId and rankNum and rankNum > (currentRanks[firstRankSpellId] or 0) then
+                currentRanks[firstRankSpellId] = rankNum
             end
         end
     end
@@ -374,10 +439,18 @@ end
 local function GetKnownSpellId(talent)
     if not SpellDraft.DraftedTalents then return talent.firstRankSpellId end
     local bestSpellId = talent.firstRankSpellId
+    local bestRank = 0
     for _, sid in ipairs(SpellDraft.DraftedTalents) do
-        local name = GetSpellInfo(sid)
-        if name == talent.name then
-            return sid
+        local mapped = SpellDraftTalentRankMap and SpellDraftTalentRankMap[sid]
+        if mapped then
+            if mapped[1] == talent.firstRankSpellId and mapped[2] > bestRank then
+                bestSpellId, bestRank = sid, mapped[2]
+            end
+        elseif bestRank == 0 then
+            local name = GetSpellInfo(sid)
+            if name == talent.name then
+                bestSpellId = sid
+            end
         end
     end
     return bestSpellId
@@ -390,17 +463,39 @@ local function CreateTalentsPanel()
     SpellDraftTalentsFrame:SetSize(340, 362)
     SpellDraftTalentsFrame:SetPoint("TOPLEFT", SpellDraftBookFrame, "TOPLEFT", 22, -58)
     SpellDraftTalentsFrame:Hide()
+
+    -- Talent Points Text Label
+    local pointsText = SpellDraftTalentsFrame:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+    pointsText:SetPoint("TOPLEFT", SpellDraftTalentsFrame, "TOPLEFT", 10, -3)
+    SpellDraftTalentsFrame.talentPointsText = pointsText
     
-    -- Scroll Frame
+    -- Scroll Frame (Adjust height to 305 to fit the bottom legend)
     local scrollFrame = CreateFrame("ScrollFrame", "SpellDraftTalentsScrollFrame", SpellDraftTalentsFrame, "UIPanelScrollFrameTemplate")
-    scrollFrame:SetSize(315, 352)
-    scrollFrame:SetPoint("TOPLEFT", SpellDraftTalentsFrame, "TOPLEFT", 0, 0)
+    scrollFrame:SetSize(315, 305)
+    scrollFrame:SetPoint("TOPLEFT", SpellDraftTalentsFrame, "TOPLEFT", 0, -22)
     
     local scrollChild = CreateFrame("Frame", "SpellDraftTalentsScrollChild", scrollFrame)
     scrollChild:SetSize(310, 1)
     scrollFrame:SetScrollChild(scrollChild)
     
     SpellDraftTalentsScrollChild = scrollChild
+
+    -- Lock icon for bottom footnote
+    local lockIcon = SpellDraftTalentsFrame:CreateTexture(nil, "ARTWORK")
+    lockIcon:SetSize(14, 14)
+    lockIcon:SetPoint("BOTTOMLEFT", SpellDraftTalentsFrame, "BOTTOMLEFT", 10, 16)
+    ApplyLockTexture(lockIcon)
+    
+    -- Footnote Legend Text
+    local legendText = SpellDraftTalentsFrame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    legendText:SetPoint("LEFT", lockIcon, "RIGHT", 4, 0)
+    legendText:SetText("|cffbbbbbbLocked talents require Tome of Talents.|r")
+    
+    -- Respec Instructions Help Text
+    local respecHelpText = SpellDraftTalentsFrame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
+    respecHelpText:SetPoint("BOTTOMLEFT", SpellDraftTalentsFrame, "BOTTOMLEFT", 10, 2)
+    respecHelpText:SetText("|cff888888Talk to Nibbs the Imp to reset talents (Free).|r")
+    
     talentsFrameCreated = true
 end
 
@@ -410,7 +505,7 @@ function SpellDraft.UpdateStatsDisplay()
     local prestige = SpellDraft.GetPlayerPrestige and SpellDraft.GetPlayerPrestige() or 0
     local rerolls = SpellDraft.RerollsLeft or 0
     local bans = SpellDraft.BansLeft or 0
-    local drafts = SpellDraft.DraftsLeft or 0
+    local points = SpellDraft.TalentPoints or 0
     
     if prestige > 0 then
         prestigeText:SetText("|cffffd100Prestige:|r " .. prestige)
@@ -421,10 +516,12 @@ function SpellDraft.UpdateStatsDisplay()
     rerollsText:SetText("|cff1eff00Rerolls:|r " .. rerolls)
     bansText:SetText("|cffe74c3cBans:|r " .. bans)
     
-    if drafts > 0 then
-        draftsText:SetText("|cff0070ddDrafts:|r " .. drafts)
-    else
-        draftsText:SetText("|cffb0b0b0Drafts:|r Done")
+    if draftsText then
+        draftsText:Hide()
+    end
+    
+    if SpellDraftTalentsFrame and SpellDraftTalentsFrame.talentPointsText then
+        SpellDraftTalentsFrame.talentPointsText:SetText("|cffffcc00Talent Points: " .. points .. "|r")
     end
 end
 
@@ -498,10 +595,26 @@ local function GetOrCreateTalentButton(specFrame, btnIndex)
         -- Rank text frame (so it renders on top of icon)
         local rankFrame = CreateFrame("Frame", nil, btn)
         rankFrame:SetAllPoints()
-        
+
         local rankText = rankFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-        rankText:SetPoint("BOTTOMRIGHT", rankFrame, "BOTTOMRIGHT", 2, -2)
+        rankText:SetPoint("CENTER", btn, "BOTTOMRIGHT", -4, 2)
         btn.rankText = rankText
+
+        -- Black plate behind the rank text so it stays readable over any border
+        local rankBg = rankFrame:CreateTexture(nil, "ARTWORK")
+        rankBg:SetTexture("Interface\\Buttons\\WHITE8x8")
+        rankBg:SetVertexColor(0, 0, 0, 0.85)
+        rankBg:SetPoint("TOPLEFT", rankText, "TOPLEFT", -3, 1)
+        rankBg:SetPoint("BOTTOMRIGHT", rankText, "BOTTOMRIGHT", 3, -1)
+        btn.rankBg = rankBg
+
+        -- Lock overlay texture
+        local lockOverlay = btn:CreateTexture(nil, "OVERLAY")
+        lockOverlay:SetSize(16, 16)
+        lockOverlay:SetPoint("TOPLEFT", btn, "TOPLEFT", -2, 2)
+        ApplyLockTexture(lockOverlay)
+        lockOverlay:Hide()
+        btn.lockOverlay = lockOverlay
         
         -- Highlight texture on hover
         local highlight = btn:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
@@ -515,6 +628,15 @@ local function GetOrCreateTalentButton(specFrame, btnIndex)
             GameTooltip:SetHyperlink("spell:" .. spellId)
             
             local talent = self.talent
+            if talent.locked then
+                GameTooltip:AddLine("|cffbbbbbb[Locked: Requires Tome of Talents]|r")
+            else
+                local reqLevel = GetTalentReqLevel(talent)
+                if UnitLevel("player") < reqLevel then
+                    GameTooltip:AddLine("|cffff2020Requires level " .. reqLevel .. "|r")
+                end
+            end
+
             if talent.prereqSpellId > 0 then
                 local prereq = SpellDraftTalentDB[talent.prereqSpellId]
                 if prereq and (currentRanks[talent.prereqSpellId] or 0) < prereq.maxRank then
@@ -525,6 +647,31 @@ local function GetOrCreateTalentButton(specFrame, btnIndex)
         end)
         btn:SetScript("OnLeave", function(self)
             GameTooltip:Hide()
+        end)
+        
+        btn:SetScript("OnClick", function(self)
+            local talent = self.talent
+            if not talent then return end
+            
+            if talent.locked then
+                UIErrorsFrame:AddMessage("This talent is locked and can only be acquired from a Tome of Talents.", 1.0, 0.1, 0.1, 1.0, 10)
+                return
+            end
+
+            local reqLevel = GetTalentReqLevel(talent)
+            if UnitLevel("player") < reqLevel then
+                UIErrorsFrame:AddMessage("This talent requires level " .. reqLevel .. ".", 1.0, 0.1, 0.1, 1.0, 10)
+                return
+            end
+
+            local currentPoints = SpellDraft.TalentPoints or 0
+            if currentPoints <= 0 then
+                UIErrorsFrame:AddMessage("You do not have any Talent Points.", 1.0, 0.1, 0.1, 1.0, 10)
+                return
+            end
+            
+            -- Send buy message to player's own name (addon whisper protocol)
+            SendChatMessage("SC_BUY_TALENT:" .. talent.firstRankSpellId, "WHISPER", nil, UnitName("player"))
         end)
         
         specFrame.buttons[btnIndex] = btn
@@ -679,6 +826,13 @@ function SpellDraft.RefreshTalentsList()
                 btn.row = dt.row
                 btn.col = dt.col
                 
+                dt.locked = LOCKED_TALENTS[dt.firstRankSpellId] or false
+                if dt.locked then
+                    btn.lockOverlay:Show()
+                else
+                    btn.lockOverlay:Hide()
+                end
+                
                 local x = dt.col * 68 + 20
                 local y = -(dt.row * 52 + 10 + 24)
                 btn:SetPoint("TOPLEFT", specFrame, "TOPLEFT", x, y)
@@ -696,6 +850,9 @@ function SpellDraft.RefreshTalentsList()
                     end
                 end
                 
+                local selectable = isMet and not dt.locked
+                    and UnitLevel("player") >= GetTalentReqLevel(dt)
+
                 if rank == maxRank then
                     btn.icon:SetDesaturated(false)
                     btn.border:SetVertexColor(1.0, 0.82, 0.0, 1.0)
@@ -704,13 +861,15 @@ function SpellDraft.RefreshTalentsList()
                     btn.icon:SetDesaturated(false)
                     btn.border:SetVertexColor(0.12, 1.0, 0.12, 1.0)
                     btn.rankText:SetText("|cff00ff00" .. rank .. "/" .. maxRank .. "|r")
-                elseif isMet then
-                    btn.icon:SetDesaturated(true)
-                    btn.border:SetVertexColor(0.5, 0.5, 0.5, 0.8)
+                elseif selectable then
+                    -- Purchasable right now with talent points: full color
+                    btn.icon:SetDesaturated(false)
+                    btn.border:SetVertexColor(0.9, 0.9, 0.9, 1.0)
                     btn.rankText:SetText("|cffffffff0/" .. maxRank .. "|r")
                 else
+                    -- Locked, level-gated, or prereq unmet: greyed out
                     btn.icon:SetDesaturated(true)
-                    btn.border:SetVertexColor(0.2, 0.2, 0.2, 0.8)
+                    btn.border:SetVertexColor(0.35, 0.35, 0.35, 0.8)
                     btn.rankText:SetText("|cff8080800/" .. maxRank .. "|r")
                 end
                 

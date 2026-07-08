@@ -189,12 +189,13 @@ local function EnsurePrestigeEntry(_, player)
     else
         local class = player:GetClass()
         local startingDrafts = (class == 6) and 5 or CONFIG.DRAFT_MODE_SPELLS
+        local startingPoints = (class == 6) and 54 or 0
         -- Start drafting immediately on first login!
         CharDBExecute(string.format([[
             INSERT INTO prestige_stats 
-            (player_id, prestige_level, draft_state, stored_class, total_expected_drafts, rerolls, bans) 
-            VALUES (%d, 0, 1, %d, %d, %d, %d)
-        ]], guid, class, startingDrafts, CONFIG.DRAFT_MODE_REROLLS, CONFIG.DRAFT_BANS_START))
+            (player_id, prestige_level, draft_state, stored_class, total_expected_drafts, rerolls, bans, talent_points) 
+            VALUES (%d, 0, 1, %d, %d, %d, %d, %d)
+        ]], guid, class, startingDrafts, CONFIG.DRAFT_MODE_REROLLS, CONFIG.DRAFT_BANS_START, startingPoints))
 
         -- Custom Mage Race starting gear injection
         if class == 8 then
@@ -342,12 +343,26 @@ end
 
 local function OnLevelUp(event, player, oldLevel)
     if IsBotPlayer(player) then return end
-    if player:GetLevel() == CONFIG.MAX_LEVEL then
+    local newLevel = player:GetLevel()
+    if newLevel == CONFIG.MAX_LEVEL then
         local factionGroup = player:GetTeam()  -- 0 = Alliance, 1 = Horde
         local locationMsg = (factionGroup == 1) and CHROMIE_LOCATION_HORDE or CHROMIE_LOCATION_ALLIANCE
 
         local fullMessage = "|cffffcc00You have reached level " .. CONFIG.MAX_LEVEL .. "!|r You can now access |cffff8800Prestige|r and |cff00ccffPrestige Draft Mode|r. " .. locationMsg
         player:SendAreaTriggerMessage(fullMessage)
+    end
+
+    -- Custom Talent Points progression
+    if IsPlayerInDraft(player) then
+        local diff = newLevel - oldLevel
+        if diff > 0 then
+            local guid = player:GetGUIDLow()
+            -- Synchronous write so the SyncTalentPoints read below can't race it
+            CharDBQuery("UPDATE prestige_stats SET talent_points = talent_points + " .. diff .. " WHERE player_id = " .. guid)
+            if type(SyncTalentPoints) == "function" then
+                SyncTalentPoints(player)
+            end
+        end
     end
 end
 
