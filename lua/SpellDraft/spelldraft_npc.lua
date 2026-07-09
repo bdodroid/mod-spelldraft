@@ -812,19 +812,19 @@ local function OnNibbsGossipHello(event, player, creature)
     
     player:GossipClearMenu()
     
-    -- Option 1: Reagent merchant (vendor)
-    player:GossipMenuAddItem(0, "|TInterface\\Icons\\INV_Potion_93:20|t I need to purchase reagents and bags.", 1, 1001)
+    -- Option 1: Reagent merchant (vendor) - Use icon ID 1 (Vendor bag)
+    player:GossipMenuAddItem(1, "I need to purchase reagents and bags.", 1, 1001)
     
     if inDraft then
-        -- Option 2: Reset Custom Talents
-        player:GossipMenuAddItem(0, "|TInterface\\Icons\\Spell_Magic_LesserInvisibility:20|t |cff3399ffI want to reset my custom talents (Free)|r", 1, 1002)
-        -- Option 3: Explanation
-        player:GossipMenuAddItem(0, "|TInterface\\Icons\\INV_Scroll_03:20|t Tell me about custom talents and respecs.", 1, 1003)
+        -- Option 2: Reset Custom Talents - Use icon ID 0 (Speech bubble)
+        player:GossipMenuAddItem(0, "I want to reset my custom talents (Free)", 1, 1002)
+        -- Option 3: Explanation - Use icon ID 0 (Speech bubble)
+        player:GossipMenuAddItem(0, "Tell me about custom talents and respecs.", 1, 1003)
     end
     
-    -- Option 4: General Spelldraft Info
+    -- Option 4: General Spelldraft Info - Use icon ID 0 (Speech bubble)
     player:GossipMenuAddItem(0, "How do I use the SpellDraft menu and Grimoire?", 1, 1004)
-    -- Option 5: Level 80 Info
+    -- Option 5: Level 80 Info - Use icon ID 0 (Speech bubble)
     player:GossipMenuAddItem(0, "What happens when I reach level 80?", 1, 1005)
     
     player:GossipSendMenu(99000, creature)
@@ -842,10 +842,9 @@ local function OnNibbsGossipSelect(event, player, creature, sender, intid, code)
     elseif intid == 1002 then
         -- Confirm talent reset
         player:GossipClearMenu()
-        player:GossipMenuAddItem(0, "|cffff0000Are you sure you want to reset all custom spent talents?|r", 1, 998)
-        player:GossipMenuAddItem(0, "|TInterface\\Icons\\Spell_Magic_LesserInvisibility:20|t |cff00ff00Yes, Reset My Talents (Free)|r", 1, 2002)
+        player:GossipMenuAddItem(0, "Yes, Reset My Talents (Free)", 1, 2002)
         player:GossipMenuAddItem(0, "No, keep my current build", 1, 1000)
-        player:GossipSendMenu(99000, creature)
+        player:GossipSendMenu(99004, creature)
         
     elseif intid == 2002 then
         -- Perform the actual reset!
@@ -856,23 +855,20 @@ local function OnNibbsGossipSelect(event, player, creature, sender, intid, code)
     elseif intid == 1003 then
         -- Detailed custom talent explanation
         player:GossipClearMenu()
-        player:GossipMenuAddItem(0, "Custom talents are purchased using Talent Points earned on level-up. You can spend points on any unlocked passive talent. Active abilities and playstyle defining talents (like Titan's Grip) cannot be purchased; they must be acquired from a Tome of Talents. If you wish to change your build, I can reset your spent points for free. Any talents you obtained through drafting are safe and will not be removed.", 1, 998)
         player:GossipMenuAddItem(0, "Back", 1, 1000)
-        player:GossipSendMenu(99000, creature)
+        player:GossipSendMenu(99003, creature)
         
     elseif intid == 1004 then
         -- Gossip Menu 99001 info
         player:GossipClearMenu()
-        player:GossipMenuAddItem(0, "Type '/spelldraft' in chat or click the 'Grimoire' button on your talent frame! That opens the main draft interface where you can see your current spells, draft pool, and options.", 1, 998)
         player:GossipMenuAddItem(0, "Back", 1, 1000)
-        player:GossipSendMenu(99000, creature)
+        player:GossipSendMenu(99001, creature)
         
     elseif intid == 1005 then
         -- Gossip Menu 99002 info
         player:GossipClearMenu()
-        player:GossipMenuAddItem(0, "Once you hit level 80, you can talk to Chromie to 'Prestige' back to level 1. You'll draft a whole new set of spells and earn prestige rewards. It keeps you leveling, and more importantly, keeps you buying my reagents!", 1, 998)
         player:GossipMenuAddItem(0, "Back", 1, 1000)
-        player:GossipSendMenu(99000, creature)
+        player:GossipSendMenu(99002, creature)
         
     elseif intid == 1000 then
         -- Back to hello

@@ -536,8 +536,10 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1, arg2, arg3, arg4)
 
     elseif prefix == "SpellChoiceTalents" then
       SpellDraft.DraftedTalents = {}
-      for id in string.gmatch(message, "%d+") do
-        table.insert(SpellDraft.DraftedTalents, tonumber(id))
+      if message and message ~= "" then
+        for id in string.gmatch(message, "%d+") do
+          table.insert(SpellDraft.DraftedTalents, tonumber(id))
+        end
       end
       if SpellDraft.RefreshTalentsList then
         SpellDraft.RefreshTalentsList()

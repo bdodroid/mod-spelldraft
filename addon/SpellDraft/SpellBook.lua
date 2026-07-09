@@ -464,15 +464,15 @@ local function CreateTalentsPanel()
     SpellDraftTalentsFrame:SetPoint("TOPLEFT", SpellDraftBookFrame, "TOPLEFT", 22, -58)
     SpellDraftTalentsFrame:Hide()
 
-    -- Talent Points Text Label
+    -- Talent Points Text Label (Moved to the bottom legend area)
     local pointsText = SpellDraftTalentsFrame:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-    pointsText:SetPoint("TOPLEFT", SpellDraftTalentsFrame, "TOPLEFT", 10, -3)
+    pointsText:SetPoint("BOTTOMLEFT", SpellDraftTalentsFrame, "BOTTOMLEFT", 10, 36)
     SpellDraftTalentsFrame.talentPointsText = pointsText
     
     -- Scroll Frame (Adjust height to 305 to fit the bottom legend)
     local scrollFrame = CreateFrame("ScrollFrame", "SpellDraftTalentsScrollFrame", SpellDraftTalentsFrame, "UIPanelScrollFrameTemplate")
     scrollFrame:SetSize(315, 305)
-    scrollFrame:SetPoint("TOPLEFT", SpellDraftTalentsFrame, "TOPLEFT", 0, -22)
+    scrollFrame:SetPoint("TOPLEFT", SpellDraftTalentsFrame, "TOPLEFT", 0, -3)
     
     local scrollChild = CreateFrame("Frame", "SpellDraftTalentsScrollChild", scrollFrame)
     scrollChild:SetSize(310, 1)
@@ -483,18 +483,18 @@ local function CreateTalentsPanel()
     -- Lock icon for bottom footnote
     local lockIcon = SpellDraftTalentsFrame:CreateTexture(nil, "ARTWORK")
     lockIcon:SetSize(14, 14)
-    lockIcon:SetPoint("BOTTOMLEFT", SpellDraftTalentsFrame, "BOTTOMLEFT", 10, 16)
+    lockIcon:SetPoint("BOTTOMLEFT", SpellDraftTalentsFrame, "BOTTOMLEFT", 10, 18)
     ApplyLockTexture(lockIcon)
     
     -- Footnote Legend Text
     local legendText = SpellDraftTalentsFrame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
     legendText:SetPoint("LEFT", lockIcon, "RIGHT", 4, 0)
-    legendText:SetText("|cffbbbbbbLocked talents require Tome of Talents.|r")
+    legendText:SetText("|cffbbbbbbLocked talents can only be acquired from Tome of Talents drafts|r")
     
     -- Respec Instructions Help Text
     local respecHelpText = SpellDraftTalentsFrame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
     respecHelpText:SetPoint("BOTTOMLEFT", SpellDraftTalentsFrame, "BOTTOMLEFT", 10, 2)
-    respecHelpText:SetText("|cff888888Talk to Nibbs the Imp to reset talents (Free).|r")
+    respecHelpText:SetText("|cff888888Talk to Nibbs the Imp to reset talents.|r")
     
     talentsFrameCreated = true
 end

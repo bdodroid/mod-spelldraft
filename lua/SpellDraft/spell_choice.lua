@@ -890,7 +890,7 @@ local function OnAddonWhisper(event, player, msg, msgType, lang, receiver)
     if msg == "SC_CHECK" then
         SyncDraftedTalents(player)
         CheckAndRestorePendingDraft(player)
-        local result = CharDBQuery("SELECT draft_state, rerolls FROM prestige_stats WHERE player_id = " .. guid)
+        local result = CharDBQuery("SELECT draft_state FROM prestige_stats WHERE player_id = " .. guid)
         if not result then
             local startDrafts = GetExpectedDraftsFormula(player:GetClass(), player:GetLevel())
             CharDBQuery(string.format([[
@@ -898,36 +898,13 @@ local function OnAddonWhisper(event, player, msg, msgType, lang, receiver)
                 (player_id, prestige_level, draft_state, stored_class, total_expected_drafts, rerolls, bans) 
                 VALUES (%d, 0, 1, %d, %d, %d, %d)
             ]], guid, player:GetClass(), startDrafts, CONFIG.DRAFT_MODE_REROLLS, CONFIG.DRAFT_BANS_START))
-            result = CharDBQuery("SELECT draft_state, rerolls FROM prestige_stats WHERE player_id = " .. guid)
+            result = CharDBQuery("SELECT draft_state FROM prestige_stats WHERE player_id = " .. guid)
         end
+        
+        SyncDraftStats(player)
+        
         if result then
             local draftState = result:GetUInt32(0)
-            local rerolls = result:GetUInt32(1)
-
-            local status = draftState == 1 and "prestiged" or "not_prestiged"
-
-            local drafts = CharDBQuery("SELECT total_expected_drafts FROM prestige_stats WHERE player_id = " .. player:GetGUIDLow())
-            
-            local playerGuid = player:GetGUIDLow()
-            local query = CharDBQuery("SELECT total_expected_drafts, successful_drafts FROM prestige_stats WHERE player_id = " .. playerGuid)
-            local bansQ = CharDBQuery("SELECT bans FROM prestige_stats WHERE player_id = " .. guid)
-            if bansQ then
-              local bansRemaining = bansQ:GetUInt32(0)
-              player:SendAddonMessage("SpellChoiceBansLeft", tostring(bansRemaining), 0, player)
-            end
-            if query then
-                local totalExpected = query:GetUInt32(0)
-                local successful = query:GetUInt32(1)
-                local totalDrafts = totalExpected - successful
-                if totalDrafts < 0 then totalDrafts = 0 end -- safety clamp
-                player:SendAddonMessage("SpellChoiceDrafts", tostring(totalDrafts), 0, player)
-            end
-            player:SendAddonMessage("SpellChoiceStatus", status, 0, player)
-
-            -- NEW: Send reroll count too
-            player:SendAddonMessage("SpellChoiceRerolls", tostring(rerolls), 0, player)
-
-            -- RESTORE DRAFT UI AFTER RELOAD: Send spell choices back
             if draftState == 1 then
                 if not fullSpellPools[guid] or #fullSpellPools[guid] == 0 then
                     LoadValidSpellChoices(player, player:GetLevel())
@@ -935,6 +912,7 @@ local function OnAddonWhisper(event, player, msg, msgType, lang, receiver)
                 if currentDraftChoices[guid] and #currentDraftChoices[guid] > 0 then
                     SendDraftChoices(player, currentDraftChoices[guid])
                 else
+                    local query = CharDBQuery("SELECT total_expected_drafts, successful_drafts FROM prestige_stats WHERE player_id = " .. guid)
                     local totalExpected = query and query:GetUInt32(0) or 0
                     local successful = query and query:GetUInt32(1) or 0
                     if successful < totalExpected then
@@ -942,10 +920,10 @@ local function OnAddonWhisper(event, player, msg, msgType, lang, receiver)
                         if spells and spells[1] > 0 then
                             currentDraftChoices[guid] = spells
                             SendDraftChoices(player, spells)
-                        elseif query then
-                            if successful < totalExpected then
-                                BeginDraftLoop(player, guid, rerolls, successful, totalExpected)
-                            end
+                        else
+                            local stats = CharDBQuery("SELECT rerolls FROM prestige_stats WHERE player_id = " .. guid)
+                            local rerolls = stats and stats:GetUInt32(0) or 0
+                            BeginDraftLoop(player, guid, rerolls, successful, totalExpected)
                         end
                     end
                 end
@@ -1020,13 +998,6 @@ local function OnAddonWhisper(event, player, msg, msgType, lang, receiver)
             return false
         end
         local result = CharDBQuery("SELECT draft_state, rerolls FROM prestige_stats WHERE player_id = " .. guid)
-        local updatedQ = CharDBQuery("SELECT total_expected_drafts, successful_drafts FROM prestige_stats WHERE player_id = " .. guid)
-        if updatedQ then
-            local totalExpected = updatedQ:GetUInt32(0)
-            local successful = updatedQ:GetUInt32(1)
-            local remaining = math.max(0, totalExpected - successful)
-            player:SendAddonMessage("SpellChoiceDrafts", tostring(remaining), 0, player)
-        end
         if not result or result:GetUInt32(0) < 1 then
             player:SendBroadcastMessage("You are not prestiged.")
             return false
@@ -1045,8 +1016,8 @@ local function OnAddonWhisper(event, player, msg, msgType, lang, receiver)
         currentDraftChoices[guid] = spells
         SaveSpellsToDB(guid, spells)
         SendDraftChoices(player, spells)
-        local rerolls = result:GetUInt32(1) - 1
-        player:SendAddonMessage("SpellChoiceRerolls", tostring(rerolls), 0, player)
+        
+        SyncDraftStats(player)
         return false
     end
     -- Handle SC_BAN:<spellId>
@@ -1095,11 +1066,7 @@ local function OnAddonWhisper(event, player, msg, msgType, lang, receiver)
         end
 
         player:SendAddonMessage("SpellChoiceBanAccepted", tostring(banSpellId), 0, player)
-        local updated = CharDBQuery("SELECT bans FROM prestige_stats WHERE player_id = " .. guid)
-        if updated then
-          local left = updated:GetUInt32(0)
-          player:SendAddonMessage("SpellChoiceBansLeft", tostring(left), 0, player)
-        end
+        SyncDraftStats(player)
 
         return false
     end
@@ -1362,7 +1329,7 @@ local function OnLogin(event, player)
     player:SetAcceptWhispers(true)
     CONFIG.EnsurePlayerLanguage(player)
     SyncDraftedTalents(player)
-    SyncTalentPoints(player)
+    SyncDraftStats(player)
     local guid = player:GetGUIDLow()
 
     -- Self-healing: restore any drafted spells that might have been accidentally removed/lost
@@ -1378,82 +1345,40 @@ local function OnLogin(event, player)
         SpellDraft_SetSystemLearning(guid, false)
     end
 
-    local playerGuid = player:GetGUIDLow()
-
-
-    local query = CharDBQuery("SELECT total_expected_drafts, successful_drafts FROM prestige_stats WHERE player_id = " .. playerGuid)
-    if query then
-        local totalExpected = query:GetUInt32(0)
-        local successful = query:GetUInt32(1)
-
-        local totalDrafts = totalExpected - successful
-        if totalDrafts < 0 then totalDrafts = 0 end
-
-        player:SendAddonMessage("SpellChoiceDrafts", tostring(totalDrafts), 0, player)
-    else
-
-    end
+    SyncDraftStats(player)
 
     local result = CharDBQuery("SELECT draft_state, rerolls, successful_drafts, total_expected_drafts FROM prestige_stats WHERE player_id = " .. guid)
+    if result then
+        local draft = result:GetUInt32(0)
+        local rerolls = result:GetUInt32(1)
+        local successful = result:GetUInt32(2)
+        local expected = result:GetUInt32(3)
 
-    if not result then
-    local playerGuid = player:GetGUIDLow()
-    local query = CharDBQuery("SELECT total_expected_drafts, successful_drafts FROM prestige_stats WHERE player_id = " .. playerGuid)
-    if query then
-        local totalExpected = query:GetUInt32(0)
-        local successful = query:GetUInt32(1)
-        local totalDrafts = totalExpected - successful
-        if totalDrafts < 0 then totalDrafts = 0 end -- safety clamp
-        player:SendAddonMessage("SpellChoiceDrafts", tostring(totalDrafts), 0, player)
-    end
+        if draft == 1 then
+            if not CheckAndRestorePendingDraft(player) then
+                --Ensure spell list is loaded
+                if not fullSpellPools[guid] or #fullSpellPools[guid] == 0 then
+                    LoadValidSpellChoices(player, player:GetLevel())
+                end
 
-        player:SendAddonMessage("SpellChoiceStatus", "not_prestiged", 0, player)
-        player:SendAddonMessage("SpellChoiceRerolls", "0", 0, player)
-        return
-    end
-
-    local draft = result:GetUInt32(0)
-    local rerolls = result:GetUInt32(1)
-    local successful = result:GetUInt32(2)
-    local expected = result:GetUInt32(3)
-
-    if draft == 1 then
-        if not CheckAndRestorePendingDraft(player) then
-            --Ensure spell list is loaded
-            if not fullSpellPools[guid] or #fullSpellPools[guid] == 0 then
-                LoadValidSpellChoices(player, player:GetLevel())-- or 80 if you want full list
+                -- Start draft loop
+                BeginDraftLoop(player, guid, rerolls, successful, expected)
             end
+        else
+            -- Send current bans list
+            local bansQ = CharDBQuery("SELECT spell_id FROM draft_bans WHERE player_id = " .. guid)
+            if bansQ then
+                local banned = {}
+                repeat
+                    table.insert(banned, bansQ:GetUInt32(0))
+                until not bansQ:NextRow()
 
-            -- Start draft loop
-            BeginDraftLoop(player, guid, rerolls, successful, expected)
+                if #banned > 0 then
+                    local data = table.concat(banned, ",")
+                    player:SendAddonMessage("SpellChoiceBans", data, 0, player)
+                end
+            end
         end
-    else
-    -- Send current bans
-    local bansQ = CharDBQuery("SELECT spell_id FROM draft_bans WHERE player_id = " .. guid)
-    if bansQ then
-        local banned = {}
-        repeat
-            table.insert(banned, bansQ:GetUInt32(0))
-        until not bansQ:NextRow()
-
-        if #banned > 0 then
-            local data = table.concat(banned, ",")
-            player:SendAddonMessage("SpellChoiceBans", data, 0, player)
-
-        end
-    end
-    local playerGuid = player:GetGUIDLow()
-    local query = CharDBQuery("SELECT total_expected_drafts, successful_drafts FROM prestige_stats WHERE player_id = " .. playerGuid)
-    if query then
-        local totalExpected = query:GetUInt32(0)
-        local successful = query:GetUInt32(1)
-        local totalDrafts = totalExpected - successful
-        if totalDrafts < 0 then totalDrafts = 0 end -- safety clamp
-        player:SendAddonMessage("SpellChoiceDrafts", tostring(totalDrafts), 0, player)
-    end
-
-        player:SendAddonMessage("SpellChoiceStatus", "not_prestiged", 0, player)
-        player:SendAddonMessage("SpellChoiceRerolls", "0", 0, player)
     end
 end
 
@@ -1858,15 +1783,7 @@ RegisterPlayerEvent(18, function(event, player, msg, type, lang)
     end
 end)
 
-function SyncTalentPoints(player)
-    local guid = player:GetGUIDLow()
-    local q = CharDBQuery("SELECT talent_points FROM prestige_stats WHERE player_id = " .. guid)
-    if q then
-        player:SendAddonMessage("SpellChoiceTalentPoints", tostring(q:GetUInt32(0)), 0, player)
-    else
-        player:SendAddonMessage("SpellChoiceTalentPoints", "0", 0, player)
-    end
-end
+
 
 -- Resolve a spell's display name across mod-ale variants (GetSpellInfo returns
 -- a SpellInfo object on this core, not a name string)
@@ -1982,20 +1899,19 @@ function HandleBuyTalent(player, spellId)
     local nextSpellId = chainInfo.ranks[nextRankIndex]
 
     -- 6. Deduct talent point and insert/update manually_acquired_talents.
-    -- CharDBQuery is synchronous, so the SyncTalentPoints read below can't race it.
     CharDBQuery("UPDATE prestige_stats SET talent_points = talent_points - 1 WHERE player_id = " .. guid)
     
-    if currentRankIndex > 0 then
-        local prevSpellId = chainInfo.ranks[currentRankIndex]
-        CharDBExecute(string.format("DELETE FROM manually_acquired_talents WHERE player_guid = %d AND spell_id = %d", guid, prevSpellId))
+    -- Delete all ranks of this talent chain from DB & player to prevent duplicate/orphaned records
+    for _, rSpellId in ipairs(chainInfo.ranks) do
+        CharDBQuery(string.format("DELETE FROM manually_acquired_talents WHERE player_guid = %d AND spell_id = %d", guid, rSpellId))
         
         draftingPlayers[guid] = true
-        player:RemoveSpell(prevSpellId)
+        player:RemoveSpell(rSpellId)
         draftingPlayers[guid] = nil
-        CharDBExecute(string.format("DELETE FROM character_spell WHERE guid = %d AND spell = %d", guid, prevSpellId))
+        CharDBExecute(string.format("DELETE FROM character_spell WHERE guid = %d AND spell = %d", guid, rSpellId))
     end
 
-    CharDBExecute(string.format("INSERT INTO manually_acquired_talents (player_guid, spell_id) VALUES (%d, %d)", guid, nextSpellId))
+    CharDBQuery(string.format("INSERT INTO manually_acquired_talents (player_guid, spell_id) VALUES (%d, %d)", guid, nextSpellId))
     
     -- Teach next rank to player
     draftingPlayers[guid] = true
@@ -2006,7 +1922,7 @@ function HandleBuyTalent(player, spellId)
     player:RemoveAura(24312)
 
     -- Sync stats and talents to client
-    SyncTalentPoints(player)
+    SyncDraftStats(player)
     SyncDraftedTalents(player, nextSpellId)
     
     player:SendBroadcastMessage(string.format("|cff00ff00Learned %s (Rank %d)|r", GetSpellNameSafe(nextSpellId), nextRankIndex))
@@ -2015,7 +1931,6 @@ end
 function ResetCustomTalents(player)
     local guid = player:GetGUIDLow()
     local q = CharDBQuery("SELECT spell_id FROM manually_acquired_talents WHERE player_guid = " .. guid)
-    local refund_points = 0
     local manual_spells = {}
     
     if q then
@@ -2034,26 +1949,48 @@ function ResetCustomTalents(player)
     player:ResetTalents(true)
     player:SetFreeTalentPoints(0)
 
+    -- Safely calculate refund points by grouping by talent chain, finding the max manually purchased rank
+    local talentMaxPurchased = {}
     for _, spellId in ipairs(manual_spells) do
         local chainInfo = talentChains[spellId]
         if chainInfo then
-            local R_purchased = chainInfo.rankIndex
+            local talentId = chainInfo.talentId
+            local rankIndex = chainInfo.rankIndex
+            talentMaxPurchased[talentId] = math.max(talentMaxPurchased[talentId] or 0, rankIndex)
+        end
+    end
 
-            -- Find if player drafted a rank in this chain
-            local R_drafted = 0
-            for rankIndex, rSpellId in ipairs(chainInfo.ranks) do
+    local refund_points = 0
+    for talentId, R_purchased in pairs(talentMaxPurchased) do
+        -- Find if player drafted a rank in this chain
+        local chain = talentIdToChain[talentId]
+        local R_drafted = 0
+        if chain then
+            for rankIndex, rSpellId in ipairs(chain.ranks) do
                 local qD = CharDBQuery(string.format("SELECT 1 FROM drafted_spells WHERE player_guid = %d AND spell_id = %d", guid, rSpellId))
                 if qD then
                     R_drafted = rankIndex
                 end
             end
+        end
 
-            local spent = R_purchased - R_drafted
-            if spent > 0 then
-                refund_points = refund_points + spent
+        local spent = R_purchased - R_drafted
+        if spent > 0 then
+            refund_points = refund_points + spent
+        end
+    end
+
+    -- Remove ALL ranks of the manually acquired talent chains from the player's spellbook
+    for _, spellId in ipairs(manual_spells) do
+        local chainInfo = talentChains[spellId]
+        if chainInfo then
+            for _, rSpellId in ipairs(chainInfo.ranks) do
+                draftingPlayers[guid] = true
+                player:RemoveSpell(rSpellId)
+                draftingPlayers[guid] = nil
+                CharDBExecute(string.format("DELETE FROM character_spell WHERE guid = %d AND spell = %d", guid, rSpellId))
             end
-
-            -- Remove current manual spell
+        else
             draftingPlayers[guid] = true
             player:RemoveSpell(spellId)
             draftingPlayers[guid] = nil
@@ -2062,7 +1999,7 @@ function ResetCustomTalents(player)
     end
 
     -- Wipe manual talents table
-    CharDBExecute("DELETE FROM manually_acquired_talents WHERE player_guid = " .. guid)
+    CharDBQuery("DELETE FROM manually_acquired_talents WHERE player_guid = " .. guid)
 
     -- Update talent points in DB (synchronous so the sync below reads fresh)
     CharDBQuery("UPDATE prestige_stats SET talent_points = talent_points + " .. refund_points .. " WHERE player_id = " .. guid)
@@ -2088,10 +2025,39 @@ function ResetCustomTalents(player)
     end
     
     -- Sync
-    SyncTalentPoints(player)
+    SyncDraftStats(player)
     SyncDraftedTalents(player)
     
     return refund_points
+end
+
+function SyncDraftStats(player)
+    if not player then return end
+    local guid = player:GetGUIDLow()
+    local result = CharDBQuery("SELECT draft_state, rerolls, bans, total_expected_drafts, successful_drafts, talent_points FROM prestige_stats WHERE player_id = " .. guid)
+    if result then
+        local draftState = result:GetUInt32(0)
+        local rerolls = result:GetUInt32(1)
+        local bans = result:GetUInt32(2)
+        local totalExpected = result:GetUInt32(3)
+        local successful = result:GetUInt32(4)
+        local points = result:GetUInt32(5)
+        
+        local status = (draftState == 1) and "prestiged" or "not_prestiged"
+        local totalDrafts = math.max(0, totalExpected - successful)
+        
+        player:SendAddonMessage("SpellChoiceStatus", status, 0, player)
+        player:SendAddonMessage("SpellChoiceRerolls", tostring(rerolls), 0, player)
+        player:SendAddonMessage("SpellChoiceBansLeft", tostring(bans), 0, player)
+        player:SendAddonMessage("SpellChoiceDrafts", tostring(totalDrafts), 0, player)
+        player:SendAddonMessage("SpellChoiceTalentPoints", tostring(points), 0, player)
+    else
+        player:SendAddonMessage("SpellChoiceStatus", "not_prestiged", 0, player)
+        player:SendAddonMessage("SpellChoiceRerolls", "0", 0, player)
+        player:SendAddonMessage("SpellChoiceBansLeft", "0", 0, player)
+        player:SendAddonMessage("SpellChoiceDrafts", "0", 0, player)
+        player:SendAddonMessage("SpellChoiceTalentPoints", "0", 0, player)
+    end
 end
 
 

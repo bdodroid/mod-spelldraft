@@ -359,8 +359,8 @@ local function OnLevelUp(event, player, oldLevel)
             local guid = player:GetGUIDLow()
             -- Synchronous write so the SyncTalentPoints read below can't race it
             CharDBQuery("UPDATE prestige_stats SET talent_points = talent_points + " .. diff .. " WHERE player_id = " .. guid)
-            if type(SyncTalentPoints) == "function" then
-                SyncTalentPoints(player)
+            if type(SyncDraftStats) == "function" then
+                SyncDraftStats(player)
             end
         end
     end
