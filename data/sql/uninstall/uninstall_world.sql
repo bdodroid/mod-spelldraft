@@ -156,7 +156,8 @@ DELETE FROM `talent_dbc`;
 -- 4. Delete Chromie prestige timekeeper and spawns
 DELETE FROM `creature_template` WHERE `entry` = 2069426;
 DELETE FROM `creature_template_model` WHERE `CreatureID` = 2069426;
-DELETE FROM `creature` WHERE `guid` IN (5400678, 5400679);
+DELETE FROM `creature` WHERE `guid` IN (5400678, 5400679, 5400680);
+DELETE FROM `npc_text` WHERE `ID` BETWEEN 100301 AND 100308;
 
 -- 5. Delete custom race-class info and shapeshift entries
 DELETE FROM `playercreateinfo` WHERE `race` IN (2, 3, 4, 6) AND `class` = 8;

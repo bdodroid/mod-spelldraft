@@ -59,6 +59,17 @@ These items drop from normal enemies throughout the world, with dungeon and raid
 
 ---
 
+## Talent Points & Passive Progression
+
+To give you more control over your character's build, `mod-spelldraft` features a custom Talent Point system alongside the active spell drafting:
+
+*   **Earning Talent Points:** You earn **1 Talent Point per level-up** (from level 2 to 80). Death Knights are granted **54 Talent Points** on character creation (at level 55) to catch up.
+*   **Purchasing Passives:** Open your Grimoire (type `/spelldraft` or click the *Grimoire* button on your talent frame) and and there you will find the **Talents** section. You can click on any unlocked passive talent from any class to purchase it using your points.
+*   **Locked Talents (Draft-Only):** Active abilities, shapeshift forms, and playstyle-defining passive talents (like *Titan's Grip*, *Metamorphosis*, or *Tree of Life*) are **locked** (marked with a lock icon in the UI). These **cannot** be purchased with points and must be rolled and drafted from a **Tome of Talents** (drops chance from enemies and Bosses).
+*   **Respecs:** If you wish to change your build, talk to **Nibbs the Imp** in starter zones or capital cities. He will reset all manually purchased talents and refund all spent points for free. Spells and talents you obtained through drafts are locked in and will not be touched by respecs.
+
+---
+
 ## Death Knight Progression & Rules
 
 Because Death Knights are a hero class and start at a higher level, the drafting system adapts to accommodate their progression:
