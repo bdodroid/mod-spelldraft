@@ -97,6 +97,16 @@ end
 
 
 -- On login: ensure DB row, give title, maybe start ticker
+local function GetStoredClass(player)
+    local guid = player:GetGUIDLow()
+    local result = CharDBQuery("SELECT stored_class FROM prestige_stats WHERE player_id = " .. guid)
+    if result then
+        return result:GetUInt8(0)
+    end
+    return nil
+end
+
+-- On login: ensure DB row, give title, maybe start ticker
 local function EnsurePrestigeEntry(_, player)
     if IsBotPlayer(player) then return end
     CONFIG.EnsurePlayerLanguage(player)
@@ -113,12 +123,13 @@ local function EnsurePrestigeEntry(_, player)
         if titleId and not player:HasTitle(titleId) then
             player:SetKnownTitle(titleId)
         end
+        if prestigeLevel >= 1 then
+            player:SendBroadcastMessage("|cff00ff00[Prestige]|r Permanent 50% Experience Bonus is active!")
+        end
     end
         CreateLuaEvent(function()
             local p = GetPlayerByGUID(guid)
             if not p then return end
-
-
 
             -- Sync draft title 535
             local hasTitle = p:HasTitle(535)
@@ -174,6 +185,28 @@ local function EnsurePrestigeEntry(_, player)
                         end
                         if not hasSpell then
                             p:LearnSpell(spellId)
+                        end
+                    end
+                end
+
+                -- Ensure starting class spells for their stored class
+                local STARTING_CLASS_SPELLS = {
+                    [1]  = { 78, 2457 },             -- Warrior: Heroic Strike, Battle Stance
+                    [2]  = { 21084, 635 },           -- Paladin: Seal of Righteousness, Holy Light
+                    [3]  = { 2973, 75 },            -- Hunter: Raptor Strike, Auto Shot
+                    [4]  = { 1752 },                 -- Rogue: Sinister Strike
+                    [5]  = { 585, 2050 },            -- Priest: Smite, Lesser Heal
+                    [7]  = { 403, 331 },             -- Shaman: Lightning Bolt, Healing Wave
+                    [8]  = { 133, 587 },             -- Mage: Fireball, Frost Armor
+                    [9]  = { 686, 688 },             -- Warlock: Shadow Bolt, Summon Imp
+                    [11] = { 5176, 5185 },           -- Druid: Wrath, Healing Touch
+                }
+                local storedClass = GetStoredClass(p)
+                local classSpells = storedClass and STARTING_CLASS_SPELLS[storedClass]
+                if classSpells then
+                    for _, sid in ipairs(classSpells) do
+                        if not p:HasSpell(sid) then
+                            p:LearnSpell(sid)
                         end
                     end
                 end
@@ -366,6 +399,18 @@ local function OnLevelUp(event, player, oldLevel)
     end
 end
 
+local function OnGiveXP(event, player, amount, victim)
+    if IsBotPlayer(player) then return end
+    local guid = player:GetGUIDLow()
+    local q = CharDBQuery("SELECT prestige_level FROM prestige_stats WHERE player_id = " .. guid)
+    if q then
+        local prestigeLevel = q:GetUInt32(0)
+        if prestigeLevel >= 1 then
+            return math.floor(amount * 1.5)
+        end
+    end
+end
+
 -- Register only valid events
 RegisterPlayerEvent(4, OnPlayerLogout)
 RegisterPlayerEvent(13, OnLevelUp)  -- 13 = PLAYER_EVENT_ON_LEVEL_CHANGE
@@ -374,5 +419,6 @@ RegisterPlayerEvent(13, OnRebuildEvent)       -- On level change
 RegisterPlayerEvent(28, OnRebuildEvent)       -- On map change
 RegisterPlayerEvent(35, OnRebuildEvent)       -- On repop
 RegisterPlayerEvent(36, OnRebuildEvent)       -- On resurrect
+RegisterPlayerEvent(12, OnGiveXP)            -- PLAYER_EVENT_ON_GIVE_XP
 
 

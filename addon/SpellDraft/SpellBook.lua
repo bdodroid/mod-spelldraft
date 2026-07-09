@@ -461,7 +461,7 @@ local function CreateTalentsPanel()
     
     SpellDraftTalentsFrame = CreateFrame("Frame", "SpellDraftTalentsFrame", SpellDraftBookFrame)
     SpellDraftTalentsFrame:SetSize(340, 362)
-    SpellDraftTalentsFrame:SetPoint("TOPLEFT", SpellDraftBookFrame, "TOPLEFT", 22, -58)
+    SpellDraftTalentsFrame:SetPoint("TOPLEFT", SpellDraftBookFrame, "TOPLEFT", 22, -75)
     SpellDraftTalentsFrame:Hide()
 
     -- Talent Points Text Label (Moved to the bottom legend area)
@@ -508,7 +508,7 @@ function SpellDraft.UpdateStatsDisplay()
     local points = SpellDraft.TalentPoints or 0
     
     if prestige > 0 then
-        prestigeText:SetText("|cffffd100Prestige:|r " .. prestige)
+        prestigeText:SetText("|cffffd100Prestige:|r " .. prestige .. " |cff00ffff(+50% XP)|r")
     else
         prestigeText:SetText("|cffb0b0b0Prestige:|r None")
     end
@@ -1005,29 +1005,29 @@ local function InitializeGrimoire()
     
     -- Title Text (Left Page)
     grimoireTitleText = SpellDraftBookFrame:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-    grimoireTitleText:SetPoint("TOP", SpellDraftBookFrame, "TOPLEFT", 192, -35)
+    grimoireTitleText:SetPoint("TOP", SpellDraftBookFrame, "TOPLEFT", 192, -48)
     grimoireTitleText:SetText("Talents")
     
     -- Title Text (Right Page)
     local talentsTitleText = SpellDraftBookFrame:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-    talentsTitleText:SetPoint("TOP", SpellDraftBookFrame, "TOPLEFT", 555, -35)
+    talentsTitleText:SetPoint("TOP", SpellDraftBookFrame, "TOPLEFT", 555, -48)
     talentsTitleText:SetText("Abilities")
     
     -- Stats Panel (relocated to the top bar)
     local statsFrame = CreateFrame("Frame", "SpellDraftStatsFrame", SpellDraftBookFrame)
-    statsFrame:SetSize(350, 24)
-    statsFrame:SetPoint("TOPLEFT", SpellDraftBookFrame, "TOPLEFT", 115, -14)
+    statsFrame:SetSize(450, 24)
+    statsFrame:SetPoint("TOPLEFT", SpellDraftBookFrame, "TOPLEFT", 30, -14)
     
     prestigeText = statsFrame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
     prestigeText:SetPoint("LEFT", statsFrame, "LEFT", 0, 0)
     prestigeText:SetJustifyH("LEFT")
 
     rerollsText = statsFrame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    rerollsText:SetPoint("LEFT", statsFrame, "LEFT", 95, 0)
+    rerollsText:SetPoint("LEFT", statsFrame, "LEFT", 160, 0)
     rerollsText:SetJustifyH("LEFT")
 
     bansText = statsFrame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
-    bansText:SetPoint("LEFT", statsFrame, "LEFT", 175, 0)
+    bansText:SetPoint("LEFT", statsFrame, "LEFT", 250, 0)
     bansText:SetJustifyH("LEFT")
 
     draftsText = statsFrame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
@@ -1104,7 +1104,7 @@ local function InitializeGrimoire()
         local col = (i - 1) % 2
         local row = math.floor((i - 1) / 2)
         local x = 385 + col * 174
-        local y = -58 - row * 56
+        local y = -75 - row * 56
         btn:SetPoint("TOPLEFT", SpellDraftBookFrame, "TOPLEFT", x, y)
 
         -- Colored rarity frame: a solid square that peeks out ~2px around the icon.

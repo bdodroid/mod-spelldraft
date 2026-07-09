@@ -12,3 +12,4 @@ SpellBook.lua
 PrestigeNameplates.lua
 ComboPoints.lua
 AmmoFix.lua
+TotemBarFix.lua
