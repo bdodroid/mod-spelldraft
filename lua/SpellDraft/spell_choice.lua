@@ -1161,54 +1161,32 @@ local function OnAddonWhisper(event, player, msg, msgType, lang, receiver)
         end
     end
 
-    -- Additional spell groups
-    if spellId == 1515 then
-        local extraSpells = {883, 2641, 6991, 982, 136}
+    -- Additional spell groups. Persist each kit spell in drafted_spells so the
+    -- anti-cheat and login self-heal treat them like the parent draft pick.
+    local function GrantKitSpells(extraSpells)
         for _, sid in ipairs(extraSpells) do
+            CharDBExecute("INSERT IGNORE INTO drafted_spells (player_guid, spell_id) VALUES (" .. guid .. ", " .. sid .. ")")
             player:LearnSpell(sid)
             player:CastSpell(player,24312,true)
             player:RemoveAura(24312)
         end
-    elseif spellId == 47241 then
-        local extraSpells = {50581, 59671, 54785, 50589}
-        for _, sid in ipairs(extraSpells) do
-            player:LearnSpell(sid)
-            player:CastSpell(player,24312,true)
-            player:RemoveAura(24312)
-        end
+    end
+    if spellId == 1515 then -- Tame Beast Starter Kit
+        GrantKitSpells({883, 2641, 6991, 982, 136}) -- Call, Dismiss, Feed, Revive, Mend Pet
+    elseif spellId == 47241 then -- Metamorphosis Starter Kit
+        GrantKitSpells({50581, 59671, 54785, 50589}) -- Shadow Cleave, Challenging Howl, Demon Charge, Immolation Aura
     elseif spellId == 9634 or spellId == 5487 then -- Bear Form / Dire Bear Form Starter Kit
-        local extraSpells = {6807, 6795, 99} -- Maul, Growl, Demoralizing Roar (1062 is Entangling Roots R2, not Demo Roar!)
-        for _, sid in ipairs(extraSpells) do
-            player:LearnSpell(sid)
-            player:CastSpell(player,24312,true)
-            player:RemoveAura(24312)
-        end
+        GrantKitSpells({6807, 6795, 99}) -- Maul, Growl, Demoralizing Roar (1062 is Entangling Roots R2, not Demo Roar!)
     elseif spellId == 768 then -- Cat Form Starter Kit
-        local extraSpells = {1082, 5215} -- Claw, Prowl
-        for _, sid in ipairs(extraSpells) do
-            player:LearnSpell(sid)
-            player:CastSpell(player,24312,true)
-            player:RemoveAura(24312)
-        end
+        GrantKitSpells({1082, 5215}) -- Claw, Prowl
     elseif spellId == 1784 then -- Rogue Stealth Starter Kit
-        local extraSpells = {921, 11297} -- Pick Pocket, Sap
-        for _, sid in ipairs(extraSpells) do
-            player:LearnSpell(sid)
-            player:CastSpell(player,24312,true)
-            player:RemoveAura(24312)
-        end
+        GrantKitSpells({921, 11297}) -- Pick Pocket, Sap
     elseif spellId == 2457 then -- Battle Stance Starter Kit
-        player:LearnSpell(100) -- Charge
-        player:CastSpell(player,24312,true)
-        player:RemoveAura(24312)
+        GrantKitSpells({100}) -- Charge
     elseif spellId == 71 then -- Defensive Stance Starter Kit
-        player:LearnSpell(355) -- Taunt
-        player:CastSpell(player,24312,true)
-        player:RemoveAura(24312)
+        GrantKitSpells({355}) -- Taunt
     elseif spellId == 2458 then -- Berserker Stance Starter Kit
-        player:LearnSpell(6552) -- Pummel
-        player:CastSpell(player,24312,true)
-        player:RemoveAura(24312)
+        GrantKitSpells({6552}) -- Pummel
     end
     draftingPlayers[guid] = nil
     for i = #(fullSpellPools[guid] or {}), 1, -1 do
