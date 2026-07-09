@@ -78,6 +78,7 @@ local function SpellChoiceWhisperFilter(_, _, msg, sender)
 end
 local bansLeft = 0
 local rerollsLeft = 0
+local unlimitedReroll = false
 local banMode = false
 ChatFrame_AddMessageEventFilter("CHAT_MSG_WHISPER", SpellChoiceWhisperFilter)         -- incoming
 ChatFrame_AddMessageEventFilter("CHAT_MSG_WHISPER_INFORM", SpellChoiceWhisperFilter) -- outgoing
@@ -92,6 +93,11 @@ local buttons = {SpellChoiceButton1, SpellChoiceButton2, SpellChoiceButton3}
 -- Using shared timer frame for Delay
 local function UpdateRerollButton()
   if not SpellChoiceRerollButton then return end
+  if unlimitedReroll then
+    SpellChoiceRerollButton:SetText("Reroll (∞)")
+    SpellChoiceRerollButton:Enable()
+    return
+  end
   SpellChoiceRerollButton:SetText("Reroll (" .. rerollsLeft .. ")")
 
   if rerollsLeft > 0 then
@@ -553,6 +559,10 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1, arg2, arg3, arg4)
         SpellDraft.UpdateStatsDisplay()
       end
 
+    elseif prefix == "SpellChoiceUnlimitedReroll" then
+      unlimitedReroll = (message == "1")
+      UpdateRerollButton()
+
     elseif prefix == "SpellChoiceDrafts" then
       local totalDrafts = tonumber(message) or 0
       SpellDraft.DraftsLeft = totalDrafts
@@ -631,7 +641,7 @@ local rerollCooldown = false
 
 SpellChoiceRerollButton:SetScript("OnClick", function()
   PlaySound("igMainMenuOptionCheckBoxOn")
-  if rerollCooldown or not unlocked or rerollsLeft <= 0 then
+  if rerollCooldown or not unlocked or (rerollsLeft <= 0 and not unlimitedReroll) then
     UIErrorsFrame:AddMessage("Cannot reroll at this time.", 1, 0, 0, 1)
     return
   end
