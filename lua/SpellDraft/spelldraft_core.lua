@@ -197,7 +197,7 @@ local function EnsurePrestigeEntry(_, player)
                     [4]  = { 1752 },                 -- Rogue: Sinister Strike
                     [5]  = { 585, 2050 },            -- Priest: Smite, Lesser Heal
                     [7]  = { 403, 331 },             -- Shaman: Lightning Bolt, Healing Wave
-                    [8]  = { 133, 587 },             -- Mage: Fireball, Frost Armor
+                    [8]  = { 133, 168 },             -- Mage: Fireball, Frost Armor
                     [9]  = { 686, 688 },             -- Warlock: Shadow Bolt, Summon Imp
                     [11] = { 5176, 5185 },           -- Druid: Wrath, Healing Touch
                 }

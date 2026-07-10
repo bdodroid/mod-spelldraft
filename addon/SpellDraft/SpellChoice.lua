@@ -888,6 +888,16 @@ local function RepositionBlizzardFrames()
         RuneFrame:ClearAllPoints()
         RuneFrame:SetPoint("TOP", PlayerFrameManaBar, "BOTTOM", 0, -16)
     end
+
+    -- 4. Force Pet Action Bar Update
+    if PetHasActionBar and PetHasActionBar() then
+        if PetActionBarFrame and not PetActionBarFrame:IsShown() then
+            PetActionBarFrame:Show()
+        end
+        if PetActionBar_Update then
+            PetActionBar_Update()
+        end
+    end
 end
 
 local function CreateHUDBar(colorR, colorG, colorB, name)
