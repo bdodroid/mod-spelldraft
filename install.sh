@@ -152,6 +152,357 @@ else
     echo "Warning: Could not locate Unit.cpp at $UNIT_CPP. Skipping core patch."
 fi
 
+# ── 4.5. PATCH CORE C++ FOR PET TRAINERS ──────────────────────────
+TRAINER_CPP="$SERVER_DIR/src/server/game/Entities/Creature/Trainer.cpp"
+if [ -f "$TRAINER_CPP" ]; then
+    if ! grep -q "SpellDraft.Enable" "$TRAINER_CPP"; then
+        echo "Patching Trainer.cpp to support pet trainers for all classes..."
+        python3 -c '
+import sys
+trainer_cpp = sys.argv[1]
+with open(trainer_cpp, "r", encoding="utf-8") as f:
+    content = f.read()
+
+target_inc = "#include \"Trainer.h\""
+replacement_inc = "#include \"Trainer.h\"\\n#include \"Config.h\""
+
+target_pet = """            case Type::Class:
+            case Type::Pet:
+                // check class for class trainers
+                return player->getClass() == GetTrainerRequirement();"""
+
+replacement_pet = """            case Type::Class:
+                // check class for class trainers
+                return player->getClass() == GetTrainerRequirement();
+            case Type::Pet:
+                // check class for pet trainers (allow any class if SpellDraft is enabled)
+                if (sConfigMgr->GetOption<bool>("SpellDraft.Enable", true))
+                    return true;
+                return player->getClass() == GetTrainerRequirement();"""
+
+if target_inc in content and target_pet in content:
+    content = content.replace(target_inc, replacement_inc, 1)
+    content = content.replace(target_pet, replacement_pet, 1)
+    with open(trainer_cpp, "w", encoding="utf-8") as f:
+        f.write(content)
+    print("Trainer.cpp successfully patched.")
+else:
+    print("Error: Could not locate target blocks in Trainer.cpp.")
+    sys.exit(1)
+' "$TRAINER_CPP"
+        if [ $? -ne 0 ]; then
+            echo "Error: Failed to patch Trainer.cpp. Aborting installation."
+            exit 1
+        fi
+    else
+        echo "Trainer.cpp is already patched for SpellDraft pet trainers."
+    fi
+else
+    echo "Warning: Could not locate Trainer.cpp at $TRAINER_CPP. Skipping core patch."
+fi
+
+# ── 4.6. PATCH CORE C++ FOR PLAYER.H STABLES ──────────────────────────
+PLAYER_H="$SERVER_DIR/src/server/game/Entities/Player/Player.h"
+if [ -f "$PLAYER_H" ]; then
+    if ! grep -q "ShowCustomStableMenu" "$PLAYER_H"; then
+        echo "Patching Player.h to support custom stable gossip helper declarations..."
+        python3 -c '
+import sys
+player_h = sys.argv[1]
+with open(player_h, "r", encoding="utf-8") as f:
+    content = f.read()
+
+target = "void OnGossipSelect(WorldObject* source, uint32 gossipListId, uint32 menuId);"
+replacement = """void OnGossipSelect(WorldObject* source, uint32 gossipListId, uint32 menuId);
+    void ShowCustomStableMenu(WorldObject* source);
+    void HandleCustomStableGossip(WorldObject* source, uint32 action);"""
+
+if target in content:
+    content = content.replace(target, replacement, 1)
+    with open(player_h, "w", encoding="utf-8") as f:
+        f.write(content)
+    print("Player.h successfully patched.")
+else:
+    print("Error: Could not locate target block in Player.h.")
+    sys.exit(1)
+' "$PLAYER_H"
+        if [ $? -ne 0 ]; then
+            echo "Error: Failed to patch Player.h. Aborting installation."
+            exit 1
+        fi
+    else
+        echo "Player.h is already patched for custom stable gossip helper declarations."
+    fi
+else
+    echo "Warning: Could not locate Player.h at $PLAYER_H. Skipping core patch."
+fi
+
+# ── 4.7. PATCH CORE C++ FOR PLAYERGOSSIP.CPP STABLES ──────────────────
+PLAYERGOSSIP_CPP="$SERVER_DIR/src/server/game/Entities/Player/PlayerGossip.cpp"
+if [ -f "$PLAYERGOSSIP_CPP" ]; then
+    if ! grep -q "ShowCustomStableMenu" "$PLAYERGOSSIP_CPP"; then
+        echo "Patching PlayerGossip.cpp to support custom stable gossip..."
+        python3 -c '
+import sys
+playergossip_cpp = sys.argv[1]
+with open(playergossip_cpp, "r", encoding="utf-8") as f:
+    content = f.read()
+
+target_inc = "#include \"WorldSession.h\""
+replacement_inc = "#include \"WorldSession.h\"\\n#include \"DatabaseEnv.h\""
+
+target_select = """    uint32 gossipOptionId = item->OptionType;
+    ObjectGuid guid = source->GetGUID();"""
+
+replacement_select = """    uint32 gossipOptionId = item->OptionType;
+    ObjectGuid guid = source->GetGUID();
+
+    if (gossipOptionId >= 1000)
+    {
+        HandleCustomStableGossip(source, gossipOptionId);
+        return;
+    }"""
+
+target_gossip = """        case GOSSIP_OPTION_STABLEPET:
+            GetSession()->SendStablePet(guid);
+            break;"""
+
+replacement_gossip = """        case GOSSIP_OPTION_STABLEPET:
+            if (sConfigMgr->GetOption<bool>("SpellDraft.Enable", true) && getClass() != CLASS_HUNTER)
+            {
+                ShowCustomStableMenu(source);
+            }
+            else
+            {
+                GetSession()->SendStablePet(guid);
+            }
+            break;"""
+
+target_menu = """            menu->GetGossipMenu().AddMenuItem(itr->second.OptionID, itr->second.OptionIcon, strOptionText, 0, itr->second.OptionType, strBoxText, itr->second.BoxMoney, itr->second.BoxCoded);"""
+
+replacement_menu = """            uint32 optionType = itr->second.OptionType;
+            uint8 optionIcon = itr->second.OptionIcon;
+            if (optionType == GOSSIP_OPTION_STABLEPET && sConfigMgr->GetOption<bool>("SpellDraft.Enable", true) && getClass() != CLASS_HUNTER)
+            {
+                optionType = 1007;
+                optionIcon = GOSSIP_ICON_CHAT;
+            }
+
+            menu->GetGossipMenu().AddMenuItem(itr->second.OptionID, optionIcon, strOptionText, 0, optionType, strBoxText, itr->second.BoxMoney, itr->second.BoxCoded);"""
+
+target_end = """void Player::ToggleInstantFlight()
+{
+    m_isInstantFlightOn = !m_isInstantFlightOn;
+}"""
+
+replacement_end = """void Player::ToggleInstantFlight()
+{
+    m_isInstantFlightOn = !m_isInstantFlightOn;
+}
+
+void Player::ShowCustomStableMenu(WorldObject* source)
+{
+    PlayerTalkClass->ClearMenus();
+
+    PetStable* petStable = GetPetStable();
+    if (!petStable)
+    {
+        petStable = &GetOrInitPetStable();
+    }
+
+    Pet* pet = GetPet();
+
+    if (pet && pet->IsAlive() && pet->getPetType() == HUNTER_PET)
+    {
+        std::string label = "Stable current pet: " + pet->GetName() + " (Level " + std::to_string(pet->GetLevel()) + ")";
+        PlayerTalkClass->GetGossipMenu().AddMenuItem(-1, GOSSIP_ICON_CHAT, label, 0, 1001, "", 0, false);
+    }
+    else if (petStable->CurrentPet)
+    {
+        std::string label = "Call pet: " + petStable->CurrentPet->Name + " (Level " + std::to_string(uint32(petStable->CurrentPet->Level)) + ")";
+        PlayerTalkClass->GetGossipMenu().AddMenuItem(-1, GOSSIP_ICON_CHAT, label, 0, 1006, "", 0, false);
+
+        std::string labelStable = "Stable pet: " + petStable->CurrentPet->Name + " (Level " + std::to_string(uint32(petStable->CurrentPet->Level)) + ")";
+        PlayerTalkClass->GetGossipMenu().AddMenuItem(-1, GOSSIP_ICON_CHAT, labelStable, 0, 1001, "", 0, false);
+    }
+
+    for (uint32 i = 0; i < petStable->MaxStabledPets; ++i)
+    {
+        if (petStable->StabledPets[i])
+        {
+            std::string label = "Retrieve stabled pet " + std::to_string(i + 1) + ": " +
+                                petStable->StabledPets[i]->Name + " (Level " +
+                                std::to_string(uint32(petStable->StabledPets[i]->Level)) + ")";
+            PlayerTalkClass->GetGossipMenu().AddMenuItem(-1, GOSSIP_ICON_CHAT, label, 0, 1002 + i, "", 0, false);
+        }
+        else
+        {
+            PlayerTalkClass->GetGossipMenu().AddMenuItem(-1, GOSSIP_ICON_CHAT, "Stable slot " + std::to_string(i + 1) + " [Empty]", 0, 1000, "", 0, false);
+        }
+    }
+
+    PlayerTalkClass->GetGossipMenu().AddMenuItem(-1, GOSSIP_ICON_CHAT, "Goodbye", 0, GOSSIP_OPTION_QUESTGIVER, "", 0, false);
+    PlayerTalkClass->SendGossipMenu(4783, source->GetGUID());
+}
+
+void Player::HandleCustomStableGossip(WorldObject* source, uint32 action)
+{
+    PetStable* petStable = GetPetStable();
+    if (!petStable)
+        return;
+
+    if (action == 1007) // Initial click on stable master option
+    {
+        ShowCustomStableMenu(source);
+    }
+    else if (action == 1001) // Stable pet
+    {
+        Pet* pet = GetPet();
+        int freeSlot = -1;
+        for (uint32 i = 0; i < petStable->MaxStabledPets; ++i)
+        {
+            if (!petStable->StabledPets[i])
+            {
+                freeSlot = i;
+                break;
+            }
+        }
+
+        if (freeSlot == -1)
+        {
+            ChatHandler(GetSession()).SendNotification("Your stable is full!");
+            ShowCustomStableMenu(source);
+            return;
+        }
+
+        if (pet)
+        {
+            RemovePet(pet, PetSaveMode(PET_SAVE_FIRST_STABLE_SLOT + freeSlot));
+            std::swap(petStable->StabledPets[freeSlot], petStable->CurrentPet);
+            ChatHandler(GetSession()).SendNotification("Pet stabled successfully.");
+        }
+        else if (petStable->CurrentPet)
+        {
+            CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_CHAR_PET_SLOT_BY_ID);
+            stmt->SetData(0, PetSaveMode(PET_SAVE_FIRST_STABLE_SLOT + freeSlot));
+            stmt->SetData(1, GetGUID().GetCounter());
+            stmt->SetData(2, petStable->CurrentPet->PetNumber);
+            CharacterDatabase.Execute(stmt);
+
+            petStable->StabledPets[freeSlot] = std::move(petStable->CurrentPet);
+            petStable->CurrentPet.reset();
+            ChatHandler(GetSession()).SendNotification("Pet stabled successfully.");
+        }
+
+        ShowCustomStableMenu(source);
+    }
+    else if (action >= 1002 && action <= 1005) // Retrieve pet
+    {
+        uint32 slot = action - 1002;
+        if (slot >= petStable->MaxStabledPets || !petStable->StabledPets[slot])
+        {
+            ShowCustomStableMenu(source);
+            return;
+        }
+
+        Pet* activePet = GetPet();
+        if (activePet)
+        {
+            RemovePet(activePet, PetSaveMode(PET_SAVE_FIRST_STABLE_SLOT + slot));
+            std::swap(petStable->StabledPets[slot], petStable->CurrentPet);
+
+            uint32 petnumber = petStable->CurrentPet->PetNumber;
+            Pet* newPet = new Pet(this, HUNTER_PET);
+            if (!newPet->LoadPetFromDB(this, 0, petnumber, false))
+            {
+                delete newPet;
+                ChatHandler(GetSession()).SendNotification("Failed to load pet.");
+            }
+            else
+            {
+                CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_CHAR_PET_SLOT_BY_ID);
+                stmt->SetData(0, PET_SAVE_AS_CURRENT);
+                stmt->SetData(1, GetGUID().GetCounter());
+                stmt->SetData(2, petnumber);
+                CharacterDatabase.Execute(stmt);
+                ChatHandler(GetSession()).SendNotification("Pets swapped successfully.");
+            }
+        }
+        else
+        {
+            petStable->CurrentPet = std::move(petStable->StabledPets[slot]);
+            petStable->StabledPets[slot].reset();
+
+            uint32 petnumber = petStable->CurrentPet->PetNumber;
+            Pet* newPet = new Pet(this, HUNTER_PET);
+            if (!newPet->LoadPetFromDB(this, 0, petnumber, false))
+            {
+                delete newPet;
+                ChatHandler(GetSession()).SendNotification("Failed to load pet.");
+            }
+            else
+            {
+                CharacterDatabasePreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_CHAR_PET_SLOT_BY_ID);
+                stmt->SetData(0, PET_SAVE_AS_CURRENT);
+                stmt->SetData(1, GetGUID().GetCounter());
+                stmt->SetData(2, petnumber);
+                CharacterDatabase.Execute(stmt);
+                ChatHandler(GetSession()).SendNotification("Pet retrieved successfully.");
+            }
+        }
+
+        ShowCustomStableMenu(source);
+    }
+    else if (action == 1006) // Call pet
+    {
+        if (petStable->CurrentPet)
+        {
+            uint32 petnumber = petStable->CurrentPet->PetNumber;
+            Pet* newPet = new Pet(this, HUNTER_PET);
+            if (!newPet->LoadPetFromDB(this, 0, petnumber, false))
+            {
+                delete newPet;
+                ChatHandler(GetSession()).SendNotification("Failed to call pet.");
+            }
+            else
+            {
+                ChatHandler(GetSession()).SendNotification("Pet called successfully.");
+            }
+        }
+        ShowCustomStableMenu(source);
+    }
+    else
+    {
+        ShowCustomStableMenu(source);
+    }
+}"""
+
+if target_inc in content:
+    content = content.replace(target_inc, replacement_inc, 1)
+if target_menu in content:
+    content = content.replace(target_menu, replacement_menu, 1)
+if target_select in content:
+    content = content.replace(target_select, replacement_select, 1)
+if target_gossip in content:
+    content = content.replace(target_gossip, replacement_gossip, 1)
+if target_end in content:
+    content = content.replace(target_end, replacement_end, 1)
+
+with open(playergossip_cpp, "w", encoding="utf-8") as f:
+    f.write(content)
+print("PlayerGossip.cpp successfully patched.")
+' "$PLAYERGOSSIP_CPP"
+        if [ $? -ne 0 ]; then
+            echo "Error: Failed to patch PlayerGossip.cpp. Aborting installation."
+            exit 1
+        fi
+    else
+        echo "PlayerGossip.cpp is already patched for custom stable gossip."
+    fi
+else
+    echo "Warning: Could not locate PlayerGossip.cpp at $PLAYERGOSSIP_CPP. Skipping core patch."
+fi
+
 # ── 5. REBUILD WORLDSERVER IMAGE ───────────────────────────────
 if [ -f "$SERVER_DIR/docker-compose.yml" ]; then
     echo "---------------------------------------------"

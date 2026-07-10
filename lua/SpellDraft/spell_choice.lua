@@ -935,7 +935,7 @@ local function OnAddonWhisper(event, player, msg, msgType, lang, receiver)
     if msg == "SC_CHECK" then
         SyncDraftedTalents(player)
         CheckAndRestorePendingDraft(player)
-        local result = CharDBQuery("SELECT draft_state FROM prestige_stats WHERE player_id = " .. guid)
+        local result = CharDBQuery("SELECT draft_state, rerolls FROM prestige_stats WHERE player_id = " .. guid)
         if not result then
             local startDrafts = GetExpectedDraftsFormula(player:GetClass(), player:GetLevel())
             CharDBQuery(string.format([[
@@ -943,7 +943,7 @@ local function OnAddonWhisper(event, player, msg, msgType, lang, receiver)
                 (player_id, prestige_level, draft_state, stored_class, total_expected_drafts, rerolls, bans) 
                 VALUES (%d, 0, 1, %d, %d, %d, %d)
             ]], guid, player:GetClass(), startDrafts, CONFIG.DRAFT_MODE_REROLLS, CONFIG.DRAFT_BANS_START))
-            result = CharDBQuery("SELECT draft_state FROM prestige_stats WHERE player_id = " .. guid)
+            result = CharDBQuery("SELECT draft_state, rerolls FROM prestige_stats WHERE player_id = " .. guid)
         end
         
         SyncDraftStats(player)
