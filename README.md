@@ -229,6 +229,8 @@ You can customize the draft system parameters by editing `lua_scripts/spelldraft
 | `DRAFT_BANS_START` | `5` | Initial bans given to characters to prune the spell pool. |
 | `INCLUDE_RARITY_5` | `false` | Enable/disable broken/racial passives and infinitely spammable spells in the draft pool. |
 | `REROLLS_PER_LEVELUP` | `0` | Rerolls earned per level-up at prestige 0 (none until first prestige). |
+| `UNLIMITED_REROLLS_FIRST_DRAW` | `false` | When enabled, rerolls are free and unlimited until the character picks the very first spell of a draft run (`successful_drafts == 0`), regardless of class or level. The Reroll button shows `Reroll (∞)` while active; normal reroll accounting resumes after the first pick. Applies again on each prestige run, since the pick counter resets. |
+| `CROSS_FACTION_PORTALS` | `false` | When enabled, all Portal/Teleport spells (both factions' capitals plus Theramore, Stonard, Shattrath, Dalaran, and Karazhan) are injected into the draft pool for both factions — Alliance characters can draft Horde city teleports and vice versa. Uses each spell's own rarity (teleports Common, portals Epic) and respects level requirements, bans, and already-known spells. |
 | `POOL_AMOUNT` | `45` | The number of spells pooled from the full DB on every new draft. Every time a player reaches a level-up or consumes a Lost Grimoire, the system runs a database query to select 45 random, level-appropriate class abilities based on your configured rarity distribution. Rerolls select from this cached pool in memory instead of repeating heavy database queries, keeping server load minimal. |
 | `RARITY_DISTRIBUTION` | `[0]=0.50, [1]=0.27, ...` | Probability ratios for Common (`[0]`), Uncommon (`[1]`), Rare (`[2]`), Epic (`[3]`), Legendary (`[4]`). |
 

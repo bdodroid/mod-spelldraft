@@ -20,6 +20,26 @@ CONFIG = {
 
     REROLLS_PER_LEVELUP = 0, --Rerolls per level-up at prestige 0 (none until first prestige)
 
+    --When true, rerolls are free & unlimited until the very first spell of a draft run
+    --is picked (successful_drafts == 0), regardless of class or level.
+    UNLIMITED_REROLLS_FIRST_DRAW = false,
+
+    CROSS_FACTION_PORTALS = false, --When true, all Portal/Teleport spells (both factions) are guaranteed draftable by either faction.
+
+    --Spell IDs force-injected into the draft pool when CROSS_FACTION_PORTALS is enabled.
+    --Alliance capitals, Horde capitals, and neutral cities (portals + teleports).
+    PORTAL_TELEPORT_SPELLS = {
+        -- Alliance capitals
+        10059, 11416, 11419, 32266, 49360,   -- Portal: Stormwind, Ironforge, Darnassus, Exodar, Theramore
+        3561,  3562,  3565,  32272, 49359,   -- Teleport: Stormwind, Ironforge, Darnassus, Exodar, Theramore
+        -- Horde capitals
+        11417, 11418, 11420, 32267, 49361,   -- Portal: Orgrimmar, Undercity, Thunder Bluff, Silvermoon, Stonard
+        3567,  3563,  3566,  32271, 49358,   -- Teleport: Orgrimmar, Undercity, Thunder Bluff, Silvermoon, Stonard
+        -- Neutral
+        33691, 53142, 28148,                  -- Portal: Shattrath, Dalaran, Karazhan
+        33690, 53140,                         -- Teleport: Shattrath, Dalaran
+    },
+
     POOL_AMOUNT = 45, --How many spells get pooled for the player to choose from. Higher numbers burdens server exponentially playercount goes up. Careful with this.
 
     RARITY_DISTRIBUTION = { -- Sum of 1.0 Distribution of rarities of spells filling up POOL_AMOUNT

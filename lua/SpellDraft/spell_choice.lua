@@ -51,6 +51,23 @@ local INCLUDE_RARITY_5 = CONFIG.INCLUDE_RARITY_5
 local REROLLS_PER_LEVELUP = CONFIG.REROLLS_PER_LEVELUP
 local POOL_AMOUNT = CONFIG.POOL_AMOUNT
 local RARITY_DISTRIBUTION = CONFIG.RARITY_DISTRIBUTION
+
+-- Returns true when the player is on their very first draft and free unlimited
+-- rerolls are enabled. Gated purely on successful_drafts so the flag survives
+-- levelling up before the first pick (draft entry resets the counter to 0, and
+-- Death Knights start at 55 rather than 1, so level is not a reliable proxy).
+local function IsFirstDrawUnlimited(successful)
+    if not CONFIG.UNLIMITED_REROLLS_FIRST_DRAW then return false end
+    return successful == 0
+end
+
+-- Emits the unlimited-reroll flag to the client so the Reroll button can show
+-- "Reroll (∞)" and stay enabled while the condition holds. Callers pass the
+-- successful_drafts count they already read from prestige_stats.
+local function SendRerollState(player, successful)
+    local unlimited = IsFirstDrawUnlimited(successful) and "1" or "0"
+    player:SendAddonMessage("SpellChoiceUnlimitedReroll", unlimited, 0, player)
+end
 local protectedSpellIds = { 
   -- Riding Training
   [54197]=true, [33388]=true, [33391]=true, [34090]=true, [34091]= true,
@@ -362,26 +379,16 @@ end
 
 local function CheckAndRestorePendingDraft(player)
     local guid = player:GetGUIDLow()
-    local res = CharDBQuery("SELECT offered_spell_1, offered_spell_2, offered_spell_3 FROM prestige_stats WHERE player_id = " .. guid)
+    local res = CharDBQuery("SELECT offered_spell_1, offered_spell_2, offered_spell_3, offered_is_talent FROM prestige_stats WHERE player_id = " .. guid)
     if not res then return false end
 
     local s1 = res:GetUInt32(0)
     if s1 > 0 then
         local spells = {s1, res:GetUInt32(1), res:GetUInt32(2)}
-        local isTalent = true
-        local count = 0
-        for _, id in ipairs(spells) do
-            if id > 0 then
-                count = count + 1
-                local inChains = (talentChains and talentChains[id]) ~= nil
-                if not inChains then
-                    isTalent = false
-                end
-            end
-        end
-        if count == 0 then isTalent = false end
-
-        if isTalent then
+        -- Trust the persisted flag: a NORMAL draft can legitimately roll three
+        -- rank-1 talent actives (they are regular pool entries), so inferring
+        -- "talent draft" from the spell ids misclassifies those drafts.
+        if res:GetUInt32(3) == 1 then
             activeTalentDrafts[guid] = true
         else
             activeTalentDrafts[guid] = nil
@@ -397,15 +404,15 @@ local function CheckAndRestorePendingDraft(player)
 end
 
 
-local function SaveSpellsToDB(guid, spells)
+local function SaveSpellsToDB(guid, spells, isTalentDraft)
     local s1 = spells[1] or 0
     local s2 = spells[2] or 0
     local s3 = spells[3] or 0
     CharDBExecute(string.format([[
         UPDATE prestige_stats
-        SET offered_spell_1 = %d, offered_spell_2 = %d, offered_spell_3 = %d
+        SET offered_spell_1 = %d, offered_spell_2 = %d, offered_spell_3 = %d, offered_is_talent = %d
         WHERE player_id = %d
-    ]], s1, s2, s3, guid))
+    ]], s1, s2, s3, isTalentDraft and 1 or 0, guid))
 end
 
 
@@ -585,6 +592,47 @@ local function LoadValidSpellChoices(player, maxLevel)
         end
     until not query:NextRow()
 
+
+    -- Step 3b: Cross-faction Portal/Teleport injection.
+    -- Force-guarantees every Portal/Teleport spell is draftable by either
+    -- faction, independent of the dbc_skilllineability join or RaceMask data.
+    -- Uses each spell's own DB Rarity (portals=3 Epic, teleports=0 Common).
+    if CONFIG.CROSS_FACTION_PORTALS and CONFIG.PORTAL_TELEPORT_SPELLS then
+        local ptCandidates = {}
+        for _, id in ipairs(CONFIG.PORTAL_TELEPORT_SPELLS) do
+            if not knownSpellIds[id] and not draftedSpellIds[id] then
+                table.insert(ptCandidates, tostring(id))
+            end
+        end
+        if #ptCandidates > 0 then
+            -- Skip ids the Step 3 query already pooled, or they carry double draw weight
+            local pooled = {}
+            for rarity = 0, 5 do
+                for _, id in ipairs(categorized[rarity] or {}) do
+                    pooled[id] = true
+                end
+            end
+            local ptQ = WorldDBQuery("SELECT Id, SpellLevel, Name_Lang_enUS, Rarity FROM dbc_spells WHERE Id IN (" .. table.concat(ptCandidates, ",") .. ")")
+            if ptQ then
+                repeat
+                    local pid = ptQ:GetUInt32(0)
+                    local pLevel = ptQ:GetUInt32(1)
+                    local pName = ptQ:IsNull(2) and "" or ptQ:GetString(2)
+                    local pRarity = ptQ:GetUInt8(3)
+                    if not pooled[pid]
+                       and pLevel <= queryLevel
+                       and pName ~= ""
+                       and not bannedNames[pName]
+                       and not knownSpellNames[pName]
+                       and pRarity <= 4
+                       and categorized[pRarity]
+                    then
+                        table.insert(categorized[pRarity], pid)
+                    end
+                until not ptQ:NextRow()
+            end
+        end
+    end
 
     -- Step 4: Shuffle buckets and pick N from each
     local draftedRarityCount = { [0]=0, [1]=0, [2]=0, [3]=0, [4]=0, [5]=0 }
@@ -835,12 +883,13 @@ local function OnLevelUp(event, player, oldLevel)
               tostring(remaining),
               0, p
             )
+            SendRerollState(p, successful)
         end
     end, 250, 1)
 
-    -- 6) generate or resend spell choices
-    local existing = LoadSpellsFromDB(guid)
-    if not existing or existing[1] == 0 then
+    -- 6) generate or resend spell choices. The restore path also re-establishes
+    -- whether a pending draft is a Tome of Talents draft (offered_is_talent).
+    if not CheckAndRestorePendingDraft(player) then
         -- generate new draft
         LoadValidSpellChoices(player, newLevel)
 
@@ -849,10 +898,6 @@ local function OnLevelUp(event, player, oldLevel)
         SaveSpellsToDB(guid, spells)
 
         SendDraftChoices(player, spells)
-    else
-        -- resend existing draft
-        currentDraftChoices[guid] = existing
-        SendDraftChoices(player, existing)
     end
 end
 
@@ -905,6 +950,34 @@ local function OnAddonWhisper(event, player, msg, msgType, lang, receiver)
         
         if result then
             local draftState = result:GetUInt32(0)
+            local rerolls = result:GetUInt32(1)
+
+            local status = draftState == 1 and "prestiged" or "not_prestiged"
+
+            local drafts = CharDBQuery("SELECT total_expected_drafts FROM prestige_stats WHERE player_id = " .. player:GetGUIDLow())
+            
+            local playerGuid = player:GetGUIDLow()
+            local query = CharDBQuery("SELECT total_expected_drafts, successful_drafts FROM prestige_stats WHERE player_id = " .. playerGuid)
+            local bansQ = CharDBQuery("SELECT bans FROM prestige_stats WHERE player_id = " .. guid)
+            if bansQ then
+              local bansRemaining = bansQ:GetUInt32(0)
+              player:SendAddonMessage("SpellChoiceBansLeft", tostring(bansRemaining), 0, player)
+            end
+            local successful = 0
+            if query then
+                local totalExpected = query:GetUInt32(0)
+                successful = query:GetUInt32(1)
+                local totalDrafts = totalExpected - successful
+                if totalDrafts < 0 then totalDrafts = 0 end -- safety clamp
+                player:SendAddonMessage("SpellChoiceDrafts", tostring(totalDrafts), 0, player)
+            end
+            player:SendAddonMessage("SpellChoiceStatus", status, 0, player)
+
+            -- NEW: Send reroll count too
+            player:SendAddonMessage("SpellChoiceRerolls", tostring(rerolls), 0, player)
+            SendRerollState(player, successful)
+
+            -- RESTORE DRAFT UI AFTER RELOAD: Send spell choices back
             if draftState == 1 then
                 if not fullSpellPools[guid] or #fullSpellPools[guid] == 0 then
                     LoadValidSpellChoices(player, player:GetLevel())
@@ -997,25 +1070,41 @@ local function OnAddonWhisper(event, player, msg, msgType, lang, receiver)
             player:SendBroadcastMessage("You cannot reroll a Tome of Talents draft.")
             return false
         end
-        local result = CharDBQuery("SELECT draft_state, rerolls FROM prestige_stats WHERE player_id = " .. guid)
+        local result = CharDBQuery("SELECT draft_state, rerolls, total_expected_drafts, successful_drafts FROM prestige_stats WHERE player_id = " .. guid)
+        local successful = 0
+        if result then
+            successful = result:GetUInt32(3)
+            local remaining = math.max(0, result:GetUInt32(2) - successful)
+            player:SendAddonMessage("SpellChoiceDrafts", tostring(remaining), 0, player)
+        end
         if not result or result:GetUInt32(0) < 1 then
             player:SendBroadcastMessage("You are not prestiged.")
             return false
         end
 
+        local unlimited = IsFirstDrawUnlimited(successful)
         local rerolls = result:GetUInt32(1)
-        if rerolls <= 0 then
+
+        if not unlimited and rerolls <= 0 then
             player:SendBroadcastMessage("No rerolls remaining.")
+            SendRerollState(player, successful)
             return false
         end
 
-        -- Reduce reroll count and update
-        CharDBExecute("UPDATE prestige_stats SET rerolls = rerolls - 1 WHERE player_id = " .. guid)
+        -- Reduce reroll count and update (skipped while unlimited free rerolls are active)
+        -- Synchronous: SyncDraftStats below re-reads rerolls immediately, and the
+        -- async CharDBExecute loses that race, re-sending the stale pre-decrement count.
+        if not unlimited then
+            CharDBQuery("UPDATE prestige_stats SET rerolls = rerolls - 1 WHERE player_id = " .. guid)
+        end
 
         local spells = GetRandomSpells(3, guid)
         currentDraftChoices[guid] = spells
         SaveSpellsToDB(guid, spells)
         SendDraftChoices(player, spells)
+        local newRerolls = unlimited and rerolls or (rerolls - 1)
+        player:SendAddonMessage("SpellChoiceRerolls", tostring(newRerolls), 0, player)
+        SendRerollState(player, successful)
         
         SyncDraftStats(player)
         return false
@@ -1042,7 +1131,8 @@ local function OnAddonWhisper(event, player, msg, msgType, lang, receiver)
         end
 
         -- Subtract ban, insert ban into DB
-        CharDBExecute("UPDATE prestige_stats SET bans = bans - 1 WHERE player_id = " .. guid)
+        -- Synchronous decrement: SyncDraftStats below re-reads bans immediately
+        CharDBQuery("UPDATE prestige_stats SET bans = bans - 1 WHERE player_id = " .. guid)
         CharDBExecute("INSERT IGNORE INTO draft_bans (player_id, spell_id) VALUES (" .. guid .. ", " .. banSpellId .. ")")
 
         -- Remove from global pool
@@ -1205,13 +1295,15 @@ local function OnAddonWhisper(event, player, msg, msgType, lang, receiver)
 
     currentDraftChoices[guid] = nil
     player:SendAddonMessage("SpellChoiceClose", "", 0, player)
+    -- The first pick ends any unlimited-reroll window; refresh the client flag
+    SendRerollState(player, newSuccessful)
 
     -- Check for additional pending drafts using local counters
     if newSuccessful < expected then
         LoadValidSpellChoices(player, player:GetLevel())
         local spells = GetRandomSpells(3, guid)
         currentDraftChoices[guid] = spells
-        SaveSpellsToDB(guid, spells) 
+        SaveSpellsToDB(guid, spells)
         SendDraftChoices(player, spells)
     end
 
@@ -1229,7 +1321,7 @@ BeginDraftLoop = function(player, guid, rerolls, successful, expected)
     local query = CharDBQuery("SELECT total_expected_drafts, successful_drafts FROM prestige_stats WHERE player_id = " .. playerGuid)
     if query then
         local totalExpected = query:GetUInt32(0)
-        local successful = query:GetUInt32(1)
+        successful = query:GetUInt32(1)
         local totalDrafts = totalExpected - successful
         if totalDrafts < 0 then totalDrafts = 0 end -- safety clamp
         player:SendAddonMessage("SpellChoiceDrafts", tostring(totalDrafts), 0, player)
@@ -1237,6 +1329,7 @@ BeginDraftLoop = function(player, guid, rerolls, successful, expected)
 
     player:SendAddonMessage("SpellChoiceStatus", "prestiged", 0, player)
     player:SendAddonMessage("SpellChoiceRerolls", tostring(rerolls), 0, player)
+    SendRerollState(player, successful)
 
     -- First spell roll
     -- Load from DB or generate if missing
@@ -1357,6 +1450,23 @@ local function OnLogin(event, player)
                 end
             end
         end
+    else
+        -- Brand-new character: EnsurePrestigeEntry (spelldraft_core.lua) creates the
+        -- prestige row AFTER this handler runs (script load order), so the first
+        -- draft window never opened until the next relog. Retry once, after the
+        -- first-login class-spell strip/grants (2s event) have settled.
+        CreateLuaEvent(function()
+            local p = GetPlayerByGUID(guid)
+            if not p or not p:IsInWorld() then return end
+            local r = CharDBQuery("SELECT draft_state, rerolls, successful_drafts, total_expected_drafts FROM prestige_stats WHERE player_id = " .. guid)
+            if not r or r:GetUInt32(0) ~= 1 then return end
+            if not CheckAndRestorePendingDraft(p) then
+                if not fullSpellPools[guid] or #fullSpellPools[guid] == 0 then
+                    LoadValidSpellChoices(p, p:GetLevel())
+                end
+                BeginDraftLoop(p, guid, r:GetUInt32(1), r:GetUInt32(2), r:GetUInt32(3))
+            end
+        end, 4000, 1)
     end
 end
 
@@ -1692,7 +1802,7 @@ RegisterItemEvent(25462, 2, function(event, player, item, target)
 
     activeTalentDrafts[guid] = true
     currentDraftChoices[guid] = spells
-    SaveSpellsToDB(guid, spells)
+    SaveSpellsToDB(guid, spells, true)
 
     player:SendAddonMessage("SpellChoiceStatus", "prestiged", 0, player)
     

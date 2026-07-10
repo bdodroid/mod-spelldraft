@@ -224,9 +224,11 @@ local function EnsurePrestigeEntry(_, player)
         local startingDrafts = (class == 6) and 5 or CONFIG.DRAFT_MODE_SPELLS
         local startingPoints = (class == 6) and 54 or 0
         -- Start drafting immediately on first login!
-        CharDBExecute(string.format([[
-            INSERT INTO prestige_stats 
-            (player_id, prestige_level, draft_state, stored_class, total_expected_drafts, rerolls, bans, talent_points) 
+        -- Synchronous write: spell_choice.lua's delayed first-login retry (and any
+        -- early SC_CHECK / zone change) must be able to read this row right away.
+        CharDBQuery(string.format([[
+            INSERT INTO prestige_stats
+            (player_id, prestige_level, draft_state, stored_class, total_expected_drafts, rerolls, bans, talent_points)
             VALUES (%d, 0, 1, %d, %d, %d, %d, %d)
         ]], guid, class, startingDrafts, CONFIG.DRAFT_MODE_REROLLS, CONFIG.DRAFT_BANS_START, startingPoints))
 
