@@ -20,7 +20,9 @@ CONFIG = {
 
     REROLLS_PER_LEVELUP = 0, --Rerolls per level-up at prestige 0 (none until first prestige)
 
-    UNLIMITED_REROLLS_FIRST_DRAW = false, --When true, rerolls are free & unlimited until the very first spell is drafted (successful_drafts==0). Applies at level 1 for normal classes, and to the first draft regardless of level for Death Knights.
+    --When true, rerolls are free & unlimited until the very first spell of a draft run
+    --is picked (successful_drafts == 0), regardless of class or level.
+    UNLIMITED_REROLLS_FIRST_DRAW = false,
 
     CROSS_FACTION_PORTALS = false, --When true, all Portal/Teleport spells (both factions) are guaranteed draftable by either faction.
 

@@ -72,7 +72,34 @@ local function UpdateClassAfterLogout(guid, newClass)
                 print(string.format("[Prestige] WARNING: UpdateClassAfterLogout safety cap hit for player guid %d (online state: %s). Forcing class swap to %d.", guid, tostring(online), newClass))
             end
 
+            -- Update class
             CharDBExecute(string.format("UPDATE characters SET class = %d WHERE guid = %d", newClass, guid))
+
+            -- Wipe quests cleanly after they are offline!
+            local dkQuests = {}
+            local dkQuestQ = WorldDBQuery("SELECT ID FROM quest_template WHERE QuestSortID = -372 AND ID NOT IN (13188, 13189)")
+            if dkQuestQ then
+                repeat
+                    table.insert(dkQuests, dkQuestQ:GetUInt32(0))
+                until not dkQuestQ:NextRow()
+            end
+            local dkQuestStr = table.concat(dkQuests, ",")
+
+            if newClass == 6 and #dkQuests > 0 then
+                CharDBExecute("DELETE FROM character_queststatus WHERE guid = " .. guid .. " AND quest NOT IN (" .. dkQuestStr .. ")")
+                CharDBExecute("DELETE FROM character_queststatus_rewarded WHERE guid = " .. guid .. " AND quest NOT IN (" .. dkQuestStr .. ")")
+            else
+                CharDBExecute("DELETE FROM character_queststatus WHERE guid = " .. guid)
+                CharDBExecute("DELETE FROM character_queststatus_rewarded WHERE guid = " .. guid)
+            end
+            CharDBExecute("DELETE FROM character_queststatus_daily WHERE guid = " .. guid)
+            CharDBExecute("DELETE FROM character_queststatus_weekly WHERE guid = " .. guid)
+            CharDBExecute("DELETE FROM character_queststatus_seasonal WHERE guid = " .. guid)
+            CharDBExecute("DELETE FROM character_queststatus_monthly WHERE guid = " .. guid)
+
+            -- Wipe spells and actions safely while offline
+            CharDBExecute("DELETE FROM character_spell WHERE guid = " .. guid)
+            CharDBExecute("DELETE FROM character_action WHERE guid = " .. guid)
 
             if actualEvId then
                 RemoveEventById(actualEvId)
@@ -166,9 +193,11 @@ local function GiveStartingGear(player)
             count = 200
         end
 
-        local item = player:AddItem(itemID, count)
-        if item and count == 1 then
-            player:EquipItem(itemID, slotID)
+        if not player:HasItem(itemID) then
+            local item = player:AddItem(itemID, count)
+            if item and count == 1 then
+                player:EquipItem(item, slotID)
+            end
         end
     end
     player:SendBroadcastMessage("Your starting gear has been equipped.")
@@ -232,71 +261,80 @@ end
 -- Menus
 local function ShowMainMenu(player, creature)
     player:GossipClearMenu()
-    player:GossipMenuAddItem(5, "|TInterface\\Icons\\INV_Misc_QuestionMark:20|t |cffffff00What is Prestige?", 1, 1)
-    player:GossipMenuAddItem(5, "|TInterface\\Icons\\Achievement_BG_winAB:20|t |cff3399ffI would like to Prestige!", 1, 2)
+    player:GossipMenuAddItem(0, "What is Prestige?", 1, 1)
+    player:GossipMenuAddItem(0, "I would like to Prestige!", 1, 2)
     local guid = player:GetGUIDLow()
     local result = CharDBQuery("SELECT draft_state FROM prestige_stats WHERE player_id = " .. guid)
     if result and result:GetUInt32(0) == 1 then
-        player:GossipMenuAddItem(5, "|TInterface\\Icons\\INV_Misc_Gear_01:20|t |cff66ff66Show My Draft Stats", 1, 300)
-        player:GossipMenuAddItem(5, "|TInterface\\Icons\\INV_Misc_Head_Human_01:20|t " .. RED .. "I want to QUIT DRAFT", 1, 200)
+        player:GossipMenuAddItem(0, "Show My Draft Stats", 1, 300)
     end
 
     -- Exit
     player:GossipMenuAddItem(0, "Goodbye", 1, 999)
 
-    player:GossipSendMenu(1, creature)
+    player:GossipSendMenu(100301, creature)
 end
 
 local function ShowPrestigeInfo(player, creature)
     player:GossipClearMenu()
-    player:GossipMenuAddItem(0, prestigeDescription, 1, 998)
     player:GossipMenuAddItem(0, "Back", 1, 0)
-    player:GossipSendMenu(1, creature)
+    player:GossipSendMenu(100302, creature)
 end
 
 local function ShowPrestigeOptions(player, creature)
     player:GossipClearMenu()
     local guid = player:GetGUIDLow()
     if player:GetLevel() < MAX_LEVEL then
-        player:GossipMenuAddItem(0, prestigeBlockedMessage, 1, 998)
+        player:GossipMenuAddItem(0, "Back", 1, 0)
+        player:GossipSendMenu(100308, creature)
     else
-        player:GossipMenuAddItem(4, GetLossListText(), 1, 998)
-        player:GossipMenuAddItem(9, RED .. "Prestige", 1, 3)
-        player:GossipMenuAddItem(9, RED .. "Prestige into Draft Mode", 1, 4)
+        player:GossipMenuAddItem(0, "Prestige", 1, 4)
+        player:GossipMenuAddItem(0, "Back", 1, 0)
+        player:GossipSendMenu(100303, creature)
     end
-    player:GossipMenuAddItem(0, "Back", 1, 0)
-    player:GossipSendMenu(1, creature)
 end
 
 local function ShowConfirmation(player, creature)
     player:GossipClearMenu()
-    player:GossipMenuAddItem(5, "|TInterface\\Icons\\INV_Misc_Bag_10:20|t Prestige requires 10 free inventory slots", 1, 998)
-    player:GossipMenuAddItem(5, "|TInterface\\Icons\\Ability_Hunter_BeastCall:20|t Prestige requires no active pet. Dismiss your pet if you have one", 1, 998)
-
-    player:GossipMenuAddItem(0, "", 1, 998) -- Spacer
-    player:GossipMenuAddItem(9, RED .. "I am sure I want to Prestige!", 1, 100)
+    player:GossipMenuAddItem(0, "I am sure I want to Prestige!", 1, 100)
     player:GossipMenuAddItem(0, "Back", 1, 2)
-    player:GossipSendMenu(1, creature)
+    player:GossipSendMenu(100304, creature)
 end
+
 local function ShowDraftConfirmation(player, creature)
     player:GossipClearMenu()
-    player:GossipMenuAddItem(5, "|TInterface\\Icons\\INV_Misc_Bag_10:20|t Prestige requires 10 free inventory slots", 1, 998)
-    player:GossipMenuAddItem(5, "|TInterface\\Icons\\Ability_Hunter_BeastCall:20|t Prestige requires no active pet. Dismiss your pet if you have one", 1, 998)
-    player:GossipMenuAddItem(5, "|TInterface\\Icons\\INV_Scroll_11:20|t Prestige Draft requires the Patch-P and SpellDraft Addon", 1, 998)
-    player:GossipMenuAddItem(0, "", 1, 998) -- Spacer
-    player:GossipMenuAddItem(9, RED .. "I am sure I want to Prestige into Draft Mode!", 1, 101)
+    player:GossipMenuAddItem(0, "I am sure I want to Prestige into Draft Mode!", 1, 101)
     player:GossipMenuAddItem(0, "Back", 1, 2)
-    player:GossipSendMenu(1, creature)
+    player:GossipSendMenu(100305, creature)
 end
+
 local function ShowEndDraftConfirmation(player, creature)
     player:GossipClearMenu()
-    player:GossipMenuAddItem(5, "|TInterface\\Icons\\INV_Misc_QuestionMark:20|t This will reset your character as if you prestiged, but without increasing your prestige level.", 1, 998)
-    player:GossipMenuAddItem(5, "|TInterface\\Icons\\Ability_Hunter_BeastCall:20|t This Process requires no active pet. Dismiss your pet if you have one", 1, 998)
-    player:GossipMenuAddItem(0, "", 1, 998) -- Spacer
-    player:GossipMenuAddItem(9, RED .. "I am sure I want to end Drafting.", 1, 201)
+    player:GossipMenuAddItem(0, "I am sure I want to end Drafting.", 1, 201)
     player:GossipMenuAddItem(0, "Back", 1, 0)
-    player:GossipSendMenu(1, creature)
+    player:GossipSendMenu(100307, creature)
 end
+
+local function ShowDraftStatsMenu(player, creature)
+    local guid = player:GetGUIDLow()
+    player:GossipClearMenu()
+    player:GossipMenuAddItem(0, "Show My Drafted Spells", 1, 301)
+    player:GossipMenuAddItem(0, "Show My Banned Spells", 1, 302)
+
+    -- Show reroll count
+    local statsQuery = CharDBQuery("SELECT rerolls FROM prestige_stats WHERE player_id = " .. guid)
+    local rerolls = statsQuery and statsQuery:GetUInt32(0) or 0
+    player:GossipMenuAddItem(0, "Rerolls Remaining: " .. rerolls, 1, 998)
+
+    -- Show ban count
+    local bansQuery = CharDBQuery("SELECT bans FROM prestige_stats WHERE player_id = " .. guid)
+    local banCount = bansQuery and bansQuery:GetUInt32(0) or 0
+    player:GossipMenuAddItem(0, "Bans Remaining: " .. banCount, 1, 998)
+
+    player:GossipMenuAddItem(0, "Back", 1, 0)
+    player:GossipSendMenu(100306, creature)
+end
+
 -- Gossip handler
 local function OnGossipHello(event, player, creature)
     ShowMainMenu(player, creature)
@@ -428,6 +466,7 @@ local function DoPrestige(player, draftMode)
         end
 
         local startingDrafts = (storedClass == 6) and 5 or DRAFT_MODE_SPELLS
+        local startingPoints = (storedClass == 6) and 54 or 0
         local updateStatsQuery = string.format([[
             UPDATE prestige_stats
             SET draft_state = 1,
@@ -439,9 +478,10 @@ local function DoPrestige(player, draftMode)
                 bonus_drafts = 0,
                 offered_spell_1 = 0,
                 offered_spell_2 = 0,
-                offered_spell_3 = 0
+                offered_spell_3 = 0,
+                talent_points = %d
             WHERE player_id = %d
-        ]], startingDrafts, bonusRerolls, storedClass, DRAFT_BANS_START, guid)
+        ]], startingDrafts, bonusRerolls, storedClass, DRAFT_BANS_START, startingPoints, guid)
 
         CharDBExecute(updateStatsQuery)
         if type(SpellDraft_SetDraftStateCache) == "function" then
@@ -450,9 +490,43 @@ local function DoPrestige(player, draftMode)
 
         local perLevel = CONFIG.PRESTIGE1_REROLLS_PER_LEVEL + CONFIG.PRESTIGE_REROLL_SCALING * (prestigeLevel - 1)
         player:SendBroadcastMessage("Draft rerolls granted: " .. bonusRerolls .. " (+" .. perLevel .. " per level)")
+    else
+        -- Normal Mode: Reset stats in DB
+        local storedClass = player:GetClass()
+        local storedQuery = CharDBQuery("SELECT stored_class FROM prestige_stats WHERE player_id = " .. guid)
+        if storedQuery and storedQuery:GetUInt8(0) > 0 then
+            storedClass = storedQuery:GetUInt8(0)
+        end
+        local updateStatsQuery = string.format([[
+            UPDATE prestige_stats
+            SET draft_state = 0,
+                successful_drafts = 0,
+                total_expected_drafts = 0,
+                rerolls = 0,
+                stored_class = %d,
+                bans = 0,
+                bonus_drafts = 0,
+                offered_spell_1 = 0,
+                offered_spell_2 = 0,
+                offered_spell_3 = 0,
+                talent_points = 0
+            WHERE player_id = %d
+        ]], storedClass, guid)
+        CharDBExecute(updateStatsQuery)
+        if type(SpellDraft_SetDraftStateCache) == "function" then
+            SpellDraft_SetDraftStateCache(guid, 0)
+        end
     end
+
+    -- Determine storedClass for general use
+    local storedClass = player:GetClass()
+    local storedQuery = CharDBQuery("SELECT stored_class FROM prestige_stats WHERE player_id = " .. guid)
+    if storedQuery and storedQuery:GetUInt8(0) > 0 then
+        storedClass = storedQuery:GetUInt8(0)
+    end
+
     RemoveAndMailEquippedItems(player)
-    player:SetLevel(player:GetClass() == 6 and 55 or 1)
+    player:SetLevel(storedClass == 6 and 55 or 1)
     GiveStartingGear(player)
 
     local name = player:GetName()
@@ -475,18 +549,9 @@ local function DoPrestige(player, draftMode)
     player:SendBroadcastMessage("You will be logged out in " .. LOGOUT_TIMER ..  " seconds to complete the prestige process.")
     player:GossipComplete()
 
-    -- Actionbar, spell, quest wipes
-    CharDBExecute("DELETE FROM character_action WHERE guid = " .. guid)
-    CharDBExecute("DELETE FROM character_spell WHERE guid = " .. guid)
-    local result = CharDBQuery("SELECT spell_id FROM drafted_spells WHERE player_guid = " .. guid)
-    -- if result then
-    --     repeat
-    --         local spellId = result:GetUInt32(0)
-    --         player:RemoveSpell(spellId)
-    --     until not result:NextRow()
-    -- end
+    -- Actionbar, spell, quest wipes (Custom tables and pets done online, standard core tables done offline)
     CharDBExecute("DELETE FROM drafted_spells WHERE player_guid = " .. guid)
-    ResetPlayerQuests(guid, player:GetClass())
+    CharDBExecute("DELETE FROM manually_acquired_talents WHERE player_guid = " .. guid)
     DeleteAllPlayerPets(guid)
 
     -- Teleport and logout
@@ -546,9 +611,8 @@ local function DoPrestige(player, draftMode)
         -- If draftMode, immediately kick and schedule class change
         if draftMode then
             local guidLow = plr:GetGUIDLow()  -- Cache the GUID before logout
-            plr:AddItem(46978,1) -- All in one totem
             plr:KickPlayer()
-            UpdateClassAfterLogout(guidLow, 8)
+            UpdateClassAfterLogout(guidLow, storedClass)
         end
     end, 500, 1)
 end
@@ -577,9 +641,9 @@ local function DoDraftEnd(player)
 
     if player:GetLevel() >= CONFIG.MAX_LEVEL then
         currentPrestige = currentPrestige + 1
-        CharDBExecute("UPDATE prestige_stats SET draft_state = 0, prestige_level = " .. currentPrestige .. " WHERE player_id = " .. guid)
+        CharDBExecute("UPDATE prestige_stats SET draft_state = 0, prestige_level = " .. currentPrestige .. ", talent_points = 0 WHERE player_id = " .. guid)
     else
-        CharDBExecute("UPDATE prestige_stats SET draft_state = 0 WHERE player_id = " .. guid)
+        CharDBExecute("UPDATE prestige_stats SET draft_state = 0, talent_points = 0 WHERE player_id = " .. guid)
     end
 
     if type(SpellDraft_SetDraftStateCache) == "function" then
@@ -611,6 +675,7 @@ local function DoDraftEnd(player)
     CharDBExecute("DELETE FROM character_spell WHERE guid = " .. guid)
     CharDBExecute("DELETE FROM draft_bans WHERE player_id = " .. guid)
     CharDBExecute("DELETE FROM drafted_spells WHERE player_guid = " .. guid)
+    CharDBExecute("DELETE FROM manually_acquired_talents WHERE player_guid = " .. guid)
     ResetPlayerQuests(guid, originalClass)
     DeleteAllPlayerPets(guid)
 
@@ -709,27 +774,12 @@ local function OnGossipSelect(event, player, creature, sender, intid)
         if HasActivePetBlockPrestige(player) then return end
         DoDraftEnd(player) 
     elseif intid == 300 then
-        player:GossipClearMenu()
-        player:GossipMenuAddItem(5, "|TInterface\\Icons\\Spell_Holy_SurgeOfLight:20|t Show My Drafted Spells", 1, 301)
-        player:GossipMenuAddItem(5, "|TInterface\\Icons\\INV_Scroll_03:20|t Show My Banned Spells", 1, 302)
-
-        -- Show reroll count
-        local statsQuery = CharDBQuery("SELECT rerolls FROM prestige_stats WHERE player_id = " .. guid)
-        local rerolls = statsQuery and statsQuery:GetUInt32(0) or 0
-        player:GossipMenuAddItem(5, "|TInterface\\Icons\\INV_Misc_CoinBag_01:16|t |cff000000Rerolls Remaining:|r " .. rerolls, 1, 998)
-
-        -- Show ban count
-        local bansQuery = CharDBQuery("SELECT bans FROM prestige_stats WHERE player_id = " .. guid)
-        local banCount = bansQuery and bansQuery:GetUInt32(0) or 0
-        player:GossipMenuAddItem(5, "|TInterface\\Icons\\INV_Misc_Gear_01:16|t |cff000000Bans Remaining:|r " .. banCount, 1, 998)
-
-        player:GossipMenuAddItem(0, "Back", 1, 0)
-        player:GossipSendMenu(1, creature)
+        ShowDraftStatsMenu(player, creature)
 
     elseif intid == 301 then
         local q = CharDBQuery("SELECT spell_id FROM drafted_spells WHERE player_guid = " .. guid)
         player:GossipClearMenu()
-        player:GossipMenuAddItem(0, "|cff000000Your Drafted Spells:|r", 1, 998)
+        player:GossipMenuAddItem(0, "Your Drafted Spells:", 1, 998)
         local seenNames = {}
 
         if q then
@@ -740,7 +790,7 @@ local function OnGossipSelect(event, player, creature, sender, intid)
 
                 if not seenNames[name] then
                     seenNames[name] = true
-                    player:GossipMenuAddItem(5, name, 1, 998)
+                    player:GossipMenuAddItem(0, name, 1, 998)
                 end
             until not q:NextRow()
         else
@@ -748,14 +798,13 @@ local function OnGossipSelect(event, player, creature, sender, intid)
         end
 
         player:GossipMenuAddItem(0, "Back", 1, 300)
-        player:GossipSendMenu(1, creature)
+        player:GossipSendMenu(100306, creature)
 
     elseif intid == 302 then
-
         local q = CharDBQuery("SELECT spell_id FROM draft_bans WHERE player_id = " .. guid)
         player:GossipClearMenu()
-        player:GossipMenuAddItem(0, "|cff3366ccClicking on a spell here will remove it from your ban list|r", 1, 998)
-        player:GossipMenuAddItem(0, "|cff000000Your Banned Spells:|r", 1, 998)
+        player:GossipMenuAddItem(0, "Clicking on a spell here will remove it from your ban list", 1, 998)
+        player:GossipMenuAddItem(0, "Your Banned Spells:", 1, 998)
 
         if q then
             repeat
@@ -763,28 +812,109 @@ local function OnGossipSelect(event, player, creature, sender, intid)
                 local nameResult = WorldDBQuery("SELECT Name_Lang_enUS FROM dbc_spells WHERE ID = " .. spellId)
                 local name = nameResult and nameResult:GetString(0) or ("Unknown Spell [" .. spellId .. "]")
 
-                player:GossipMenuAddItem(5, name .. " (" .. spellId .. ")", 1, 100000 + spellId)
+                player:GossipMenuAddItem(0, name .. " (" .. spellId .. ")", 1, 100000 + spellId)
             until not q:NextRow()
         else
             player:GossipMenuAddItem(0, "No banned spells found.", 1, 998)
         end
         player:GossipMenuAddItem(0, "Back", 1, 300)
-        player:GossipSendMenu(1, creature) 
+        player:GossipSendMenu(100306, creature) 
   elseif intid >= 100000 then
     local spellId = intid - 100000
     CharDBExecute("DELETE FROM draft_bans WHERE player_id = " .. guid .. " AND spell_id = " .. spellId)
     player:SendBroadcastMessage("Removed banned spell ID: " .. spellId)
 
     -- Go back to the Draft Stats submenu (intid 300)
-    player:GossipClearMenu()
-    player:GossipMenuAddItem(5, "|TInterface\\Icons\\Spell_Holy_SurgeOfLight:20|t Show My Drafted Spells", 1, 301)
-    player:GossipMenuAddItem(5, "|TInterface\\Icons\\INV_Scroll_03:20|t Show My Banned Spells", 1, 302)
-    player:GossipMenuAddItem(0, "Back", 1, 0)
-    player:GossipSendMenu(1, creature)
-
-
-    end
+    ShowDraftStatsMenu(player, creature)
+  end
 end
 
 RegisterCreatureGossipEvent(NPC_ID, 1, OnGossipHello)
 RegisterCreatureGossipEvent(NPC_ID, 2, OnGossipSelect)
+
+-- Local helpers (each Eluna file is its own chunk; core's copies are file-local)
+local function IsBotPlayer(player)
+    return player.IsBot ~= nil and player:IsBot()
+end
+
+local function IsPlayerInDraft(player)
+    local query = CharDBQuery("SELECT draft_state FROM prestige_stats WHERE player_id = " .. player:GetGUIDLow())
+    return (query and query:GetUInt32(0) == 1) or false
+end
+
+local NIBBS_NPC_ID = 99000
+
+local function OnNibbsGossipHello(event, player, creature)
+    if IsBotPlayer(player) then return false end
+    
+    local inDraft = IsPlayerInDraft(player)
+    
+    player:GossipClearMenu()
+    
+    -- Option 1: Reagent merchant (vendor) - Use icon ID 1 (Vendor bag)
+    player:GossipMenuAddItem(1, "I need to purchase reagents and bags.", 1, 1001)
+    
+    if inDraft then
+        -- Option 2: Reset Custom Talents - Use icon ID 0 (Speech bubble)
+        player:GossipMenuAddItem(0, "I want to reset my custom talents (Free)", 1, 1002)
+        -- Option 3: Explanation - Use icon ID 0 (Speech bubble)
+        player:GossipMenuAddItem(0, "Tell me about custom talents and respecs.", 1, 1003)
+    end
+    
+    -- Option 4: General Spelldraft Info - Use icon ID 0 (Speech bubble)
+    player:GossipMenuAddItem(0, "How do I use the SpellDraft menu and Grimoire?", 1, 1004)
+    -- Option 5: Level 80 Info - Use icon ID 0 (Speech bubble)
+    player:GossipMenuAddItem(0, "What happens when I reach level 80?", 1, 1005)
+    
+    player:GossipSendMenu(99000, creature)
+    return true
+end
+
+local function OnNibbsGossipSelect(event, player, creature, sender, intid, code)
+    if IsBotPlayer(player) then return false end
+    local guid = player:GetGUIDLow()
+    
+    if intid == 1001 then
+        player:GossipComplete()
+        player:SendListInventory(creature)
+        
+    elseif intid == 1002 then
+        -- Confirm talent reset
+        player:GossipClearMenu()
+        player:GossipMenuAddItem(0, "Yes, Reset My Talents (Free)", 1, 2002)
+        player:GossipMenuAddItem(0, "No, keep my current build", 1, 1000)
+        player:GossipSendMenu(99004, creature)
+        
+    elseif intid == 2002 then
+        -- Perform the actual reset!
+        local count = ResetCustomTalents(player)
+        player:SendBroadcastMessage("|cff00ff00Reset complete! Refunded " .. count .. " custom Talent Points.|r")
+        player:GossipComplete()
+        
+    elseif intid == 1003 then
+        -- Detailed custom talent explanation
+        player:GossipClearMenu()
+        player:GossipMenuAddItem(0, "Back", 1, 1000)
+        player:GossipSendMenu(99003, creature)
+        
+    elseif intid == 1004 then
+        -- Gossip Menu 99001 info
+        player:GossipClearMenu()
+        player:GossipMenuAddItem(0, "Back", 1, 1000)
+        player:GossipSendMenu(99001, creature)
+        
+    elseif intid == 1005 then
+        -- Gossip Menu 99002 info
+        player:GossipClearMenu()
+        player:GossipMenuAddItem(0, "Back", 1, 1000)
+        player:GossipSendMenu(99002, creature)
+        
+    elseif intid == 1000 then
+        -- Back to hello
+        OnNibbsGossipHello(event, player, creature)
+    end
+    return true
+end
+
+RegisterCreatureGossipEvent(NIBBS_NPC_ID, 1, OnNibbsGossipHello)
+RegisterCreatureGossipEvent(NIBBS_NPC_ID, 2, OnNibbsGossipSelect)

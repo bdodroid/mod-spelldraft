@@ -67,10 +67,11 @@ end
 -- Filter out SC:* whispers from showing in chat (only for self-whispers)
 local function SpellChoiceWhisperFilter(_, _, msg, sender)
   if sender == UnitName("player") then
-    if msg:match("^SC:%d+$") or 
-       msg:match("^SC_BAN:%d+$") or 
-       msg == "SC_CHECK" or 
-       msg == "SC_REROLL" or 
+    if msg:match("^SC:%d+$") or
+       msg:match("^SC_BAN:%d+$") or
+       msg:match("^SC_BUY_TALENT:%d+$") or
+       msg == "SC_CHECK" or
+       msg == "SC_REROLL" or
        msg == "SC_REPLACE_BANNED" then
       return true
     end
@@ -541,11 +542,20 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1, arg2, arg3, arg4)
 
     elseif prefix == "SpellChoiceTalents" then
       SpellDraft.DraftedTalents = {}
-      for id in string.gmatch(message, "%d+") do
-        table.insert(SpellDraft.DraftedTalents, tonumber(id))
+      if message and message ~= "" then
+        for id in string.gmatch(message, "%d+") do
+          table.insert(SpellDraft.DraftedTalents, tonumber(id))
+        end
       end
       if SpellDraft.RefreshTalentsList then
         SpellDraft.RefreshTalentsList()
+      end
+
+    elseif prefix == "SpellChoiceTalentPoints" then
+      local points = tonumber(message) or 0
+      SpellDraft.TalentPoints = points
+      if SpellDraft.UpdateStatsDisplay then
+        SpellDraft.UpdateStatsDisplay()
       end
 
     elseif prefix == "SpellChoiceRerollDenied" then

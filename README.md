@@ -59,6 +59,17 @@ These items drop from normal enemies throughout the world, with dungeon and raid
 
 ---
 
+## Talent Points & Passive Progression
+
+To give you more control over your character's build, `mod-spelldraft` features a custom Talent Point system alongside the active spell drafting:
+
+*   **Earning Talent Points:** You earn **1 Talent Point per level-up** (from level 2 to 80). Death Knights are granted **54 Talent Points** on character creation (at level 55) to catch up.
+*   **Purchasing Passives:** Open your Grimoire (type `/spelldraft` or click the *Grimoire* button on your talent frame) and and there you will find the **Talents** section. You can click on any unlocked passive talent from any class to purchase it using your points.
+*   **Locked Talents (Draft-Only):** Active abilities, shapeshift forms, and playstyle-defining passive talents (like *Titan's Grip*, *Metamorphosis*, or *Tree of Life*) are **locked** (marked with a lock icon in the UI). These **cannot** be purchased with points and must be rolled and drafted from a **Tome of Talents** (drops chance from enemies and Bosses).
+*   **Respecs:** If you wish to change your build, talk to **Nibbs the Imp** in starter zones or capital cities. He will reset all manually purchased talents and refund all spent points for free. Spells and talents you obtained through drafts are locked in and will not be touched by respecs.
+
+---
+
 ## Death Knight Progression & Rules
 
 Because Death Knights are a hero class and start at a higher level, the drafting system adapts to accommodate their progression:
@@ -218,6 +229,8 @@ You can customize the draft system parameters by editing `lua_scripts/spelldraft
 | `DRAFT_BANS_START` | `5` | Initial bans given to characters to prune the spell pool. |
 | `INCLUDE_RARITY_5` | `false` | Enable/disable broken/racial passives and infinitely spammable spells in the draft pool. |
 | `REROLLS_PER_LEVELUP` | `0` | Rerolls earned per level-up at prestige 0 (none until first prestige). |
+| `UNLIMITED_REROLLS_FIRST_DRAW` | `false` | When enabled, rerolls are free and unlimited until the character picks the very first spell of a draft run (`successful_drafts == 0`), regardless of class or level. The Reroll button shows `Reroll (∞)` while active; normal reroll accounting resumes after the first pick. Applies again on each prestige run, since the pick counter resets. |
+| `CROSS_FACTION_PORTALS` | `false` | When enabled, all Portal/Teleport spells (both factions' capitals plus Theramore, Stonard, Shattrath, Dalaran, and Karazhan) are injected into the draft pool for both factions — Alliance characters can draft Horde city teleports and vice versa. Uses each spell's own rarity (teleports Common, portals Epic) and respects level requirements, bans, and already-known spells. |
 | `POOL_AMOUNT` | `45` | The number of spells pooled from the full DB on every new draft. Every time a player reaches a level-up or consumes a Lost Grimoire, the system runs a database query to select 45 random, level-appropriate class abilities based on your configured rarity distribution. Rerolls select from this cached pool in memory instead of repeating heavy database queries, keeping server load minimal. |
 | `RARITY_DISTRIBUTION` | `[0]=0.50, [1]=0.27, ...` | Probability ratios for Common (`[0]`), Uncommon (`[1]`), Rare (`[2]`), Epic (`[3]`), Legendary (`[4]`). |
 

@@ -97,6 +97,16 @@ end
 
 
 -- On login: ensure DB row, give title, maybe start ticker
+local function GetStoredClass(player)
+    local guid = player:GetGUIDLow()
+    local result = CharDBQuery("SELECT stored_class FROM prestige_stats WHERE player_id = " .. guid)
+    if result then
+        return result:GetUInt8(0)
+    end
+    return nil
+end
+
+-- On login: ensure DB row, give title, maybe start ticker
 local function EnsurePrestigeEntry(_, player)
     if IsBotPlayer(player) then return end
     CONFIG.EnsurePlayerLanguage(player)
@@ -113,12 +123,13 @@ local function EnsurePrestigeEntry(_, player)
         if titleId and not player:HasTitle(titleId) then
             player:SetKnownTitle(titleId)
         end
+        if prestigeLevel >= 1 then
+            player:SendBroadcastMessage("|cff00ff00[Prestige]|r Permanent 50% Experience Bonus is active!")
+        end
     end
         CreateLuaEvent(function()
             local p = GetPlayerByGUID(guid)
             if not p then return end
-
-
 
             -- Sync draft title 535
             local hasTitle = p:HasTitle(535)
@@ -178,6 +189,28 @@ local function EnsurePrestigeEntry(_, player)
                     end
                 end
 
+                -- Ensure starting class spells for their stored class
+                local STARTING_CLASS_SPELLS = {
+                    [1]  = { 78, 2457 },             -- Warrior: Heroic Strike, Battle Stance
+                    [2]  = { 21084, 635 },           -- Paladin: Seal of Righteousness, Holy Light
+                    [3]  = { 2973, 75 },            -- Hunter: Raptor Strike, Auto Shot
+                    [4]  = { 1752 },                 -- Rogue: Sinister Strike
+                    [5]  = { 585, 2050 },            -- Priest: Smite, Lesser Heal
+                    [7]  = { 403, 331 },             -- Shaman: Lightning Bolt, Healing Wave
+                    [8]  = { 133, 587 },             -- Mage: Fireball, Frost Armor
+                    [9]  = { 686, 688 },             -- Warlock: Shadow Bolt, Summon Imp
+                    [11] = { 5176, 5185 },           -- Druid: Wrath, Healing Touch
+                }
+                local storedClass = GetStoredClass(p)
+                local classSpells = storedClass and STARTING_CLASS_SPELLS[storedClass]
+                if classSpells then
+                    for _, sid in ipairs(classSpells) do
+                        if not p:HasSpell(sid) then
+                            p:LearnSpell(sid)
+                        end
+                    end
+                end
+
                 if type(SpellDraft_SetSystemLearning) == "function" then
                     SpellDraft_SetSystemLearning(guid, false)
                 end
@@ -189,12 +222,15 @@ local function EnsurePrestigeEntry(_, player)
     else
         local class = player:GetClass()
         local startingDrafts = (class == 6) and 5 or CONFIG.DRAFT_MODE_SPELLS
+        local startingPoints = (class == 6) and 54 or 0
         -- Start drafting immediately on first login!
-        CharDBExecute(string.format([[
-            INSERT INTO prestige_stats 
-            (player_id, prestige_level, draft_state, stored_class, total_expected_drafts, rerolls, bans) 
-            VALUES (%d, 0, 1, %d, %d, %d, %d)
-        ]], guid, class, startingDrafts, CONFIG.DRAFT_MODE_REROLLS, CONFIG.DRAFT_BANS_START))
+        -- Synchronous write: spell_choice.lua's delayed first-login retry (and any
+        -- early SC_CHECK / zone change) must be able to read this row right away.
+        CharDBQuery(string.format([[
+            INSERT INTO prestige_stats
+            (player_id, prestige_level, draft_state, stored_class, total_expected_drafts, rerolls, bans, talent_points)
+            VALUES (%d, 0, 1, %d, %d, %d, %d, %d)
+        ]], guid, class, startingDrafts, CONFIG.DRAFT_MODE_REROLLS, CONFIG.DRAFT_BANS_START, startingPoints))
 
         -- Custom Mage Race starting gear injection
         if class == 8 then
@@ -342,12 +378,38 @@ end
 
 local function OnLevelUp(event, player, oldLevel)
     if IsBotPlayer(player) then return end
-    if player:GetLevel() == CONFIG.MAX_LEVEL then
+    local newLevel = player:GetLevel()
+    if newLevel == CONFIG.MAX_LEVEL then
         local factionGroup = player:GetTeam()  -- 0 = Alliance, 1 = Horde
         local locationMsg = (factionGroup == 1) and CHROMIE_LOCATION_HORDE or CHROMIE_LOCATION_ALLIANCE
 
         local fullMessage = "|cffffcc00You have reached level " .. CONFIG.MAX_LEVEL .. "!|r You can now access |cffff8800Prestige|r and |cff00ccffPrestige Draft Mode|r. " .. locationMsg
         player:SendAreaTriggerMessage(fullMessage)
+    end
+
+    -- Custom Talent Points progression
+    if IsPlayerInDraft(player) then
+        local diff = newLevel - oldLevel
+        if diff > 0 then
+            local guid = player:GetGUIDLow()
+            -- Synchronous write so the SyncTalentPoints read below can't race it
+            CharDBQuery("UPDATE prestige_stats SET talent_points = talent_points + " .. diff .. " WHERE player_id = " .. guid)
+            if type(SyncDraftStats) == "function" then
+                SyncDraftStats(player)
+            end
+        end
+    end
+end
+
+local function OnGiveXP(event, player, amount, victim)
+    if IsBotPlayer(player) then return end
+    local guid = player:GetGUIDLow()
+    local q = CharDBQuery("SELECT prestige_level FROM prestige_stats WHERE player_id = " .. guid)
+    if q then
+        local prestigeLevel = q:GetUInt32(0)
+        if prestigeLevel >= 1 then
+            return math.floor(amount * 1.5)
+        end
     end
 end
 
@@ -359,5 +421,6 @@ RegisterPlayerEvent(13, OnRebuildEvent)       -- On level change
 RegisterPlayerEvent(28, OnRebuildEvent)       -- On map change
 RegisterPlayerEvent(35, OnRebuildEvent)       -- On repop
 RegisterPlayerEvent(36, OnRebuildEvent)       -- On resurrect
+RegisterPlayerEvent(12, OnGiveXP)            -- PLAYER_EVENT_ON_GIVE_XP
 
 
