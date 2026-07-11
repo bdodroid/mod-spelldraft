@@ -1,0 +1,26 @@
+name: Package Client Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    name: Package and Upload Client Asset
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Create Client Package
+        run: |
+          cd wow-client
+          zip -r ../wow-client.zip Data Interface
+          cd ..
+
+      - name: Upload Client Release Asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: wow-client.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

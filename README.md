@@ -18,6 +18,14 @@ Designed primarily for players who want a fun, rogue-like draft experience on th
 
 ---
 
+## Player Connection Guide (Client-Only)
+
+If you are a player connecting to a server running SpellDraft, you do **not** need to install or build the server module. You only need the client files:
+1. Go to the **Releases** section of this repository and download the latest `wow-client.zip`.
+2. Extract the zip file and copy the contents (`Data/` and `Interface/` folders) directly into your World of Warcraft game directory, merging them with your existing folders.
+
+---
+
 ## Requirements & Dependencies
 
 Before installing, ensure your server meets the following external dependencies:
@@ -115,9 +123,8 @@ We provide an automated script that performs all server-side staging, configurat
    cd modules/mod-spelldraft
    ./install.sh
    ```
-3. Copy `addon/SpellDraft` into your WoW client's `Interface/AddOns/` directory.
-4. Copy `client/patch-P.mpq` into your WoW client's `data/` directory (ensure lowercase `data/` path on Linux/Steam Deck).
-5. Restart your server!
+ 3. **Install Client files:** Copy/merge the contents of the `wow-client/` directory in the cloned repository directly into your World of Warcraft game directory (so that `wow-client/Data/patch-P.mpq` merges with `Data/patch-P.mpq` and `wow-client/Interface/AddOns/SpellDraft` merges with `Interface/AddOns/SpellDraft`).
+ 4. Restart your server!
 
 ---
 
@@ -175,8 +182,7 @@ If you prefer to perform the steps yourself, follow this sequence:
 6. **Rebuild server:** Compile the C++ module code:
    * **Docker:** Rebuild the container: `docker compose build ac-worldserver` (or `docker compose up -d --build`).
    * **Local:** Run your local CMake and compilation toolchain.
-7. **Install client AddOn:** Copy `addon/SpellDraft` into your WoW client's `Interface/AddOns/SpellDraft/` folder.
-8. **Install client patch:** Copy `client/patch-P.mpq` into your WoW client's `data/` directory.
+ 7. **Install Client files:** Copy/merge the contents of the `wow-client/` directory directly into your World of Warcraft client folder (which merges the `Data/` and `Interface/` subdirectories).
 
 </details>
 
@@ -208,9 +214,8 @@ To apply the changes, reload the Eluna scripting engine in-game or restart your 
 
 ### 4. Update the Client Addon
 Since updates may contain client-side fixes, copy the updated Addon files to your local game client:
-* **Copy AddOn:** Copy the contents of `addon/SpellDraft/` to your WoW client's `Interface/AddOns/SpellDraft/` directory, overwriting the old files.
+* **Copy AddOn:** Copy the contents of `wow-client/Interface/AddOns/SpellDraft/` to your WoW client's `Interface/AddOns/SpellDraft/` directory, overwriting the old files.
 * **Reload UI:** In-game, type `/reload` in the chat window to load the new AddOn layout.
-
 
 ---
 
