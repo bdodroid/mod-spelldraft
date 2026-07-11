@@ -202,9 +202,11 @@ local function EnsurePrestigeEntry(_, player)
                     [11] = { 5176, 5185 },           -- Druid: Wrath, Healing Touch
                 }
                 local storedClass = GetStoredClass(p)
+                print(string.format("[EnsurePrestigeEntry] Player: %s (%d), StoredClass: %s", p:GetName(), guid, tostring(storedClass)))
                 local classSpells = storedClass and STARTING_CLASS_SPELLS[storedClass]
                 if classSpells then
                     for _, sid in ipairs(classSpells) do
+                        print(string.format("[EnsurePrestigeEntry] Teaching starting spell: %d to %s", sid, p:GetName()))
                         if not p:HasSpell(sid) then
                             p:LearnSpell(sid)
                         end

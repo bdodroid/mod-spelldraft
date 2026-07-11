@@ -52,7 +52,7 @@ end
 
 local function UpdateClassAfterLogout(guid, newClass)
     local ticks = 0
-    local maxTicks = 15
+    local maxTicks = 150
     local eventId
 
     eventId = CreateLuaEvent(function(evId)
@@ -69,7 +69,15 @@ local function UpdateClassAfterLogout(guid, newClass)
 
         if (p == nil and online == 0) or ticks >= maxTicks then
             if ticks >= maxTicks and (p ~= nil or online ~= 0) then
-                print(string.format("[Prestige] WARNING: UpdateClassAfterLogout safety cap hit for player guid %d (online state: %s). Forcing class swap to %d.", guid, tostring(online), newClass))
+                print(string.format("[Prestige] WARNING: UpdateClassAfterLogout safety cap hit for player guid %d. Re-kicking and rescheduling to perform safe offline cleanup.", guid))
+                if p then
+                    p:KickPlayer()
+                end
+                UpdateClassAfterLogout(guid, newClass)
+                if actualEvId then
+                    RemoveEventById(actualEvId)
+                end
+                return
             end
 
             -- Update class
@@ -105,7 +113,7 @@ local function UpdateClassAfterLogout(guid, newClass)
                 RemoveEventById(actualEvId)
             end
         end
-    end, 2000, 0)
+    end, 200, 0)
 end
 
 
@@ -535,9 +543,9 @@ local function DoPrestige(player, draftMode)
     if q then
         local currentPrestige = q:GetUInt32(0)
         newPrestige = currentPrestige + 1
-        CharDBExecute("UPDATE prestige_stats SET prestige_level = " .. newPrestige .. " WHERE player_id = " .. guid)
+        CharDBExecute("UPDATE prestige_stats SET prestige_level = " .. newPrestige .. ", prestige_tokens = prestige_tokens + 10 WHERE player_id = " .. guid)
     else
-        CharDBExecute("INSERT INTO prestige_stats (player_id, prestige_level) VALUES (" .. guid .. ", 1)")
+        CharDBExecute("INSERT INTO prestige_stats (player_id, prestige_level, prestige_tokens) VALUES (" .. guid .. ", 1, 10)")
     end
 
     if type(SpellDraft_SetPrestigeCache) == "function" then
