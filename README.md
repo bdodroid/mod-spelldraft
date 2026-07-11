@@ -13,7 +13,8 @@ Designed primarily for players who want a fun, rogue-like draft experience on th
     *   *Tomes of Talents:* Draft custom passive talents (like *Cruelty*, *Ignite*, or *Conviction*) from any class. Access your drafted talents and spells by typing `/spelldraft` in the game chat.
 *   **Universal Gear & Weapon Proficiencies:** Any character can equip any armor type (Cloth to Plate) and wield any weapon type, with weapon skills training automatically to the level cap on login.
 *   **Automatic Spell Ranking:** No need to visit class trainers. Drafted spells automatically upgrade to their highest available rank as you level up.
-*   **Prestige System:** Reach level 80 and reset back to level 1 (or level 55 for Death Knights) with a prestige title. While spells and talents are wiped on reset, you start your next draft run with a significantly higher starting pool of rerolls and rerolls per level-up to customize your next draft run.
+*   **Prestige System:** Reach level 80 and reset back to level 1 (or level 55 for Death Knights) with a prestige title. While spells and talents are wiped on reset, you earn **Prestige Tokens** (10 per reset) and starting bonus rerolls for your next run.
+*   **Prestige Rewards Shop:** Access a custom, tabbed reward shop within your Grimoire interface (`/spelldraft` menu, click the Gold Purse icon next to the Prestige label) to purchase rare mounts, vanity companion pets, account-bound heirloom weapons and armor (+XP scaling), scrolls, and transformation toys using your Prestige Tokens.
 
 ---
 
@@ -233,6 +234,14 @@ You can customize the draft system parameters by editing `lua_scripts/spelldraft
 | `CROSS_FACTION_PORTALS` | `false` | When enabled, all Portal/Teleport spells (both factions' capitals plus Theramore, Stonard, Shattrath, Dalaran, and Karazhan) are injected into the draft pool for both factions — Alliance characters can draft Horde city teleports and vice versa. Uses each spell's own rarity (teleports Common, portals Epic) and respects level requirements, bans, and already-known spells. |
 | `POOL_AMOUNT` | `45` | The number of spells pooled from the full DB on every new draft. Every time a player reaches a level-up or consumes a Lost Grimoire, the system runs a database query to select 45 random, level-appropriate class abilities based on your configured rarity distribution. Rerolls select from this cached pool in memory instead of repeating heavy database queries, keeping server load minimal. |
 | `RARITY_DISTRIBUTION` | `[0]=0.50, [1]=0.27, ...` | Probability ratios for Common (`[0]`), Uncommon (`[1]`), Rare (`[2]`), Epic (`[3]`), Legendary (`[4]`). |
+
+### Prestige Shop Customization
+
+The Prestige Shop inventory, item details, and token costs are defined and can be modified in two files:
+1.  **Server-Side Costs:** The server-side cost validation is mapped in [spell_choice.lua](file:///home/bdodroid/wow-server-playerbots/modules/mod-spelldraft/lua/SpellDraft/spell_choice.lua#L927-L973) under the `costs` table in the `HandleBuyShopItem` function.
+2.  **Client-Side UI:** The shop item entries, categories, descriptions, and displayed token costs are configured in [PrestigeShop.lua](file:///home/bdodroid/wow-server-playerbots/modules/mod-spelldraft/addon/SpellDraft/PrestigeShop.lua#L3-L75) under the `shopItems` table.
+
+---
 
 ### Database-Level Loot Tuning
 
