@@ -9,6 +9,7 @@ SpellData.lua
 SpellData_Talents.lua
 SpellChoice.lua
 SpellBook.lua
+PrestigeShop.lua
 PrestigeNameplates.lua
 ComboPoints.lua
 AmmoFix.lua

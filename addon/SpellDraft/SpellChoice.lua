@@ -558,6 +558,23 @@ eventFrame:SetScript("OnEvent", function(self, event, arg1, arg2, arg3, arg4)
         SpellDraft.UpdateStatsDisplay()
       end
 
+    elseif prefix == "SpellChoicePrestigeTokens" then
+      local tokens = tonumber(message) or 0
+      SpellDraft.PrestigeTokens = tokens
+      if SpellDraft.UpdateStatsDisplay then
+        SpellDraft.UpdateStatsDisplay()
+      end
+      if SpellDraft.UpdatePrestigeShopTokens then
+        SpellDraft.UpdatePrestigeShopTokens()
+      end
+
+    elseif prefix == "SpellChoicePrestigeLevel" then
+      local level = tonumber(message) or 0
+      SpellDraft.PrestigeLevel = level
+      if SpellDraft.UpdateStatsDisplay then
+        SpellDraft.UpdateStatsDisplay()
+      end
+
     elseif prefix == "SpellChoiceRerollDenied" then
       UIErrorsFrame:AddMessage("You have no rerolls remaining.", 1, 0, 0, 1)
 

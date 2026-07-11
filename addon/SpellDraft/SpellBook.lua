@@ -502,15 +502,24 @@ end
 function SpellDraft.UpdateStatsDisplay()
     if not prestigeText then return end
     
-    local prestige = SpellDraft.GetPlayerPrestige and SpellDraft.GetPlayerPrestige() or 0
+    local prestige = SpellDraft.PrestigeLevel or 0
     local rerolls = SpellDraft.RerollsLeft or 0
     local bans = SpellDraft.BansLeft or 0
     local points = SpellDraft.TalentPoints or 0
     
     if prestige > 0 then
         prestigeText:SetText("|cffffd100Prestige:|r " .. prestige .. " |cff00ffff(+50% XP)|r")
+        if SpellDraft.ShopButton then
+            SpellDraft.ShopButton:Show()
+            SpellDraft.ShopButton:SetPoint("LEFT", prestigeText:GetParent(), "LEFT", 0, 0)
+            prestigeText:SetPoint("LEFT", SpellDraft.ShopButton, "RIGHT", 6, 0)
+        end
     else
         prestigeText:SetText("|cffb0b0b0Prestige:|r None")
+        if SpellDraft.ShopButton then
+            SpellDraft.ShopButton:Hide()
+        end
+        prestigeText:SetPoint("LEFT", prestigeText:GetParent(), "LEFT", 0, 0)
     end
     
     rerollsText:SetText("|cff1eff00Rerolls:|r " .. rerolls)
@@ -1018,9 +1027,37 @@ local function InitializeGrimoire()
     statsFrame:SetSize(450, 24)
     statsFrame:SetPoint("TOPLEFT", SpellDraftBookFrame, "TOPLEFT", 30, -14)
     
+    -- Shop Button next to prestige text
+    local shopBtn = CreateFrame("Button", "SpellDraftPrestigeShopButton", statsFrame)
+    shopBtn:SetSize(16, 16)
+    shopBtn:SetPoint("LEFT", statsFrame, "LEFT", 0, 0)
+    shopBtn:SetNormalTexture("Interface\\Minimap\\TRACKING\\Auctioneer")
+    shopBtn:SetHighlightTexture("Interface\\Buttons\\UI-Common-MouseHilight", "ADD")
+    shopBtn:Hide() -- Hidden by default until UpdateStatsDisplay shows it
+
     prestigeText = statsFrame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
     prestigeText:SetPoint("LEFT", statsFrame, "LEFT", 0, 0)
     prestigeText:SetJustifyH("LEFT")
+
+    shopBtn:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText("|cffffcc00Prestige Shop|r")
+        GameTooltip:AddLine("Click to open the Prestige Shop to spend your Prestige Tokens.", 1, 1, 1)
+        local tokens = SpellDraft.PrestigeTokens or 0
+        GameTooltip:AddLine("Your Tokens: |cff00ff00" .. tokens .. "|r", 1, 1, 1)
+        GameTooltip:Show()
+    end)
+    shopBtn:SetScript("OnLeave", function(self)
+        GameTooltip:Hide()
+    end)
+
+    shopBtn:SetScript("OnClick", function()
+        if SpellDraft.TogglePrestigeShop then
+            SpellDraft.TogglePrestigeShop()
+        end
+    end)
+
+    SpellDraft.ShopButton = shopBtn
 
     rerollsText = statsFrame:CreateFontString(nil, "ARTWORK", "GameFontNormalSmall")
     rerollsText:SetPoint("LEFT", statsFrame, "LEFT", 160, 0)

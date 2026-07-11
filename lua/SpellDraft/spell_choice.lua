@@ -279,11 +279,8 @@ local function GetEligibleTalentsPool(player, level)
     for spellId, _ in pairs(nextRankSpells) do
         local info = talentChains[spellId]
         if info and LOCKED_TALENTS[info.ranks[1]] then
-            local reqLevel = 10 + info.tierId * 5
-            if reqLevel <= queryLevel then
-                if not blacklistedSpellIds[spellId] and not knownSpells[spellId] then
-                    table.insert(pool, spellId)
-                end
+            if not blacklistedSpellIds[spellId] and not knownSpells[spellId] then
+                table.insert(pool, spellId)
             end
         end
     end
@@ -700,6 +697,27 @@ local function OnLearnSpell(event, player, spellId)
         return
     end
 
+    -- Allow companion pet and mount spells taught by items through the anti-cheat
+    local itemCheck = WorldDBQuery("SELECT 1 FROM item_template WHERE class = 15 AND (spellid_1 = " .. spellId .. " OR spellid_2 = " .. spellId .. " OR spellid_3 = " .. spellId .. " OR spellid_4 = " .. spellId .. ") LIMIT 1")
+    if itemCheck then
+        -- Also teach Riding skill automatically if they are learning a mount
+        if spellId == 43688 or spellId == 42776 then
+            -- Ground mounts: teach Apprentice Riding
+            if not player:HasSpell(33388) then
+                player:LearnSpell(33388)
+            end
+        elseif spellId == 37015 or spellId == 40192 or spellId == 63796 or spellId == 64927 or spellId == 72286 then
+            -- Flying mounts: teach all Riding progression up to Artisan Riding
+            local riding = { 33388, 33391, 34090, 34091 }
+            for _, rs in ipairs(riding) do
+                if not player:HasSpell(rs) then
+                    player:LearnSpell(rs)
+                end
+            end
+        end
+        return
+    end
+
     --  Check if the player is in Draft Mode
     local res = CharDBQuery("SELECT draft_state FROM prestige_stats WHERE player_id = " .. guid)
     if res and res:GetUInt32(0) == 1 then
@@ -902,6 +920,90 @@ local function OnLevelUp(event, player, oldLevel)
 end
 
 
+local function HandleBuyShopItem(player, itemId)
+    if not player then return end
+    local guid = player:GetGUIDLow()
+    
+    local costs = {
+        -- Drafts
+        [4427] = 1,  -- Scroll of Reroll
+        [1078] = 1,  -- Scroll of Ban
+        [13149] = 2, -- Lost Grimoire
+        [25462] = 2, -- Tome of Talents
+        
+        -- Heirlooms
+        [42943] = 3, -- Bloodied Arcanite Reaper
+        [42945] = 3, -- Venerable Dal'Rend's Sacred Charge
+        [42946] = 3, -- Charmed Ancient Bone Bow
+        [42944] = 3, -- Balanced Heartseeker
+        [42947] = 3, -- Dignified Headmaster's Charge
+        [44100] = 3, -- Pristine Lightforge Spaulders
+        [48685] = 3, -- Polished Breastplate of Valor
+        [42952] = 3, -- Stained Shadowcraft Spaulders
+        [48689] = 3, -- Stained Shadowcraft Tunic
+        [48691] = 3, -- Tattered Dreadmist Robe
+        [42951] = 3, -- Mystical Pauldrons of Elements
+        [48683] = 3, -- Mystical Vest of Elements
+        [42991] = 3, -- Swift Hand of Justice
+        [42992] = 3, -- Discerning Eye of the Beast
+        
+        -- Mounts
+        [33809] = 5,  -- Amani War Bear
+        [49283] = 5,  -- Reins of the Spectral Tiger
+        [32458] = 5,  -- Ashes of Al'ar
+        [45693] = 5,  -- Mimiron's Head
+        [50818] = 5,  -- Invincible's Reins
+        [30609] = 5,  -- Swift Nether Drake
+        [46708] = 5,  -- Deadly Gladiator's Frost Wyrm
+        
+        -- Pets
+        [13584] = 3, -- Diablo Stone
+        [13582] = 3, -- Zergling Leash
+        [13583] = 3, -- Panda Collar
+        [30360] = 3, -- Lurky's Egg
+        
+        -- Cosmetics
+        [1973] = 4,  -- Orb of Deception
+        [35275] = 4, -- Orb of the Sin'dorei
+        [37254] = 5, -- Super Simian Sphere
+        [43499] = 4, -- Iron Boot Flask
+        [33079] = 4, -- Murloc Costume
+        [46780] = 3, -- Ogre Pinata
+        [34480] = 3  -- Romantic Picnic Basket
+    }
+    
+    local cost = costs[itemId]
+    if not cost then
+        player:SendBroadcastMessage("Invalid shop item.")
+        return
+    end
+    
+    local q = CharDBQuery("SELECT prestige_tokens FROM prestige_stats WHERE player_id = " .. guid)
+    if not q then
+        player:SendBroadcastMessage("You must have prestige status to use the shop.")
+        return
+    end
+    
+    local tokens = q:GetUInt32(0)
+    if tokens < cost then
+        player:SendBroadcastMessage("You do not have enough Prestige Tokens.")
+        return
+    end
+    
+    local item = player:AddItem(itemId, 1)
+    if not item then
+        player:SendBroadcastMessage("Failed to purchase: inventory full.")
+        return
+    end
+    
+    local newTokens = tokens - cost
+    CharDBQuery("UPDATE prestige_stats SET prestige_tokens = " .. newTokens .. " WHERE player_id = " .. guid)
+    
+    player:SendBroadcastMessage("Purchased " .. item:GetName() .. " for " .. cost .. " Prestige Tokens.")
+    SyncDraftStats(player)
+end
+
+
 -- Event: Player sends whisper to addon
 local function OnAddonWhisper(event, player, msg, msgType, lang, receiver)
     if IsBotPlayer(player) then return end
@@ -928,6 +1030,12 @@ local function OnAddonWhisper(event, player, msg, msgType, lang, receiver)
     local buySpellId = tonumber(msg:match("^SC_BUY_TALENT:(%d+)"))
     if buySpellId then
         HandleBuyTalent(player, buySpellId)
+        return false
+    end
+
+    local buyShopItemId = tonumber(msg:match("^SC_BUY_SHOP:(%d+)"))
+    if buyShopItemId then
+        HandleBuyShopItem(player, buyShopItemId)
         return false
     end
 
@@ -1819,6 +1927,30 @@ RegisterItemEvent(25462, 2, function(event, player, item, target)
 end)
 
 
+-- Bypass level requirements on cosmetic toy/trinket spells by manually casting them triggered (bypassing restrictions)
+local cosmeticItemSpells = {
+    [1973] = 16739,   -- Orb of Deception
+    [33079] = 42365,  -- Murloc Costume
+    [34480] = 45094,  -- Romantic Picnic Basket
+    [35275] = 46354,  -- Orb of the Sin'dorei
+    [37254] = 48332,  -- Super Simian Sphere
+    [43499] = 58501,  -- Iron Boot Flask
+    [46780] = 65783,  -- Ogre Pinata
+}
+
+for itemId, spellId in pairs(cosmeticItemSpells) do
+    RegisterItemEvent(itemId, 2, function(event, player, item, target)
+        if player:IsInCombat() then
+            player:SendBroadcastMessage("You cannot use this item in combat.")
+            return true
+        end
+        player:CastSpell(player, spellId, true)
+        return true
+    end)
+end
+
+
+
 -- Execute talent chains loader
 LoadTalentChains()
 
@@ -2122,7 +2254,7 @@ end
 function SyncDraftStats(player)
     if not player then return end
     local guid = player:GetGUIDLow()
-    local result = CharDBQuery("SELECT draft_state, rerolls, bans, total_expected_drafts, successful_drafts, talent_points FROM prestige_stats WHERE player_id = " .. guid)
+    local result = CharDBQuery("SELECT draft_state, rerolls, bans, total_expected_drafts, successful_drafts, talent_points, prestige_tokens, prestige_level FROM prestige_stats WHERE player_id = " .. guid)
     if result then
         local draftState = result:GetUInt32(0)
         local rerolls = result:GetUInt32(1)
@@ -2130,6 +2262,8 @@ function SyncDraftStats(player)
         local totalExpected = result:GetUInt32(3)
         local successful = result:GetUInt32(4)
         local points = result:GetUInt32(5)
+        local tokens = result:GetUInt32(6)
+        local prestigeLevel = result:GetUInt32(7)
         
         local status = (draftState == 1) and "prestiged" or "not_prestiged"
         local totalDrafts = math.max(0, totalExpected - successful)
@@ -2139,12 +2273,16 @@ function SyncDraftStats(player)
         player:SendAddonMessage("SpellChoiceBansLeft", tostring(bans), 0, player)
         player:SendAddonMessage("SpellChoiceDrafts", tostring(totalDrafts), 0, player)
         player:SendAddonMessage("SpellChoiceTalentPoints", tostring(points), 0, player)
+        player:SendAddonMessage("SpellChoicePrestigeTokens", tostring(tokens), 0, player)
+        player:SendAddonMessage("SpellChoicePrestigeLevel", tostring(prestigeLevel), 0, player)
     else
         player:SendAddonMessage("SpellChoiceStatus", "not_prestiged", 0, player)
         player:SendAddonMessage("SpellChoiceRerolls", "0", 0, player)
         player:SendAddonMessage("SpellChoiceBansLeft", "0", 0, player)
         player:SendAddonMessage("SpellChoiceDrafts", "0", 0, player)
         player:SendAddonMessage("SpellChoiceTalentPoints", "0", 0, player)
+        player:SendAddonMessage("SpellChoicePrestigeTokens", "0", 0, player)
+        player:SendAddonMessage("SpellChoicePrestigeLevel", "0", 0, player)
     end
 end
 

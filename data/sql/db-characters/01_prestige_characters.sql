@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS `prestige_stats` (
   `offered_spell_2` INT DEFAULT 0,
   `offered_spell_3` INT DEFAULT 0,
   `bans` INT UNSIGNED NOT NULL DEFAULT 0,
+  `prestige_tokens` INT UNSIGNED NOT NULL DEFAULT 0,
   CONSTRAINT `fk_prestige_stats_char` FOREIGN KEY (`player_id`) REFERENCES `characters`(`guid`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
