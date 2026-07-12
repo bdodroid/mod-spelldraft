@@ -148,6 +148,7 @@ INSERT INTO `creature_loot_template` (`Entry`, `Item`, `Reference`, `Chance`, `Q
 (21505, 30811, 0, 35, 1, 1, 0, 1, 1, 'Sunfury Summoner - Scroll of Demonic Unbanishing');
 
 -- 3. Drop module-owned DBC/lookup tables and delete talent_dbc contents
+DROP TABLE IF EXISTS `custom_random_enchantments`;
 DROP TABLE IF EXISTS `dbc_spells`;
 DROP TABLE IF EXISTS `dbc_skilllineability`;
 DROP TABLE IF EXISTS `dbc_skillline`;

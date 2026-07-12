@@ -570,6 +570,22 @@ CONFIG = {
         [6770]  = 1784,  -- Sap
         [921]   = 1784,  -- Pick Pocket
     },
+
+    -- ══════════════════ Random Enchantment (RE) System ══════════════════
+    RE_ENABLE = true, --Master switch for the Random Enchantment system (spelldraft_re.lua)
+
+    --Chance (percent) that a freshly acquired item rolls a Random Enchantment,
+    --keyed by the ITEM's quality: 2 Uncommon (green), 3 Rare (blue), 4 Epic, 5 Legendary.
+    RE_ROLL_CHANCE = {
+        [2] = 10,
+        [3] = 25,
+        [4] = 50,
+        [5] = 100,
+    },
+
+    RE_BOTS_CAN_ROLL = false, --When false, playerbot loot never rolls REs (saves DB churn)
+
+    RE_SYNC_INTERVAL_MS = 2000, --How often equipped gear is re-scanned for enchant aura sync
 }
 
 function CONFIG.EnsurePlayerLanguage(player)
