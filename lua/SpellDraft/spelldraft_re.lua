@@ -732,13 +732,7 @@ local function CollectCandidateItems(player)
     return items
 end
 
--- Client asks for a fresh position map after /reload (see RETooltip.lua).
-local function OnWhisper(_, player, msg, _, _, _)
-    if not RE_ENABLE then return end
-    if msg:gsub("%s+$", "") ~= "SDRE_SYNC" then return end
-    PushEnchantMap(player)
-    return false
-end
+-- (The SDRE whisper protocol handler lives in the services section below.)
 
 local function OnCommand(_, player, command, _)
     if not player then return end
@@ -760,165 +754,260 @@ local function OnCommand(_, player, command, _)
 end
 
 -- ============================================================================
--- Nibbs' Mystic Enchant services (Wave 4 economy)
+-- Nibbs' Mystic Enchant services (Wave 4 economy) — custom client UI
 --
--- Reached from Nibbs the Imp's gossip (spelldraft_npc.lua routes intids
--- 3000-3999 here via the SpellDraftRE global). Services:
---     Reroll       replace an item's enchant with a new random one (gold)
---     Imbue        add an enchant to an un-enchanted item (gold)
---     Golden Imbue guaranteed Epic-or-better enchant (Prestige Tokens)
+-- Nibbs' gossip (spelldraft_npc.lua routes intid 3000 here via the
+-- SpellDraftRE global) tells the client to open the Mystic Enchant frame
+-- (REServices.lua). The frame drives everything over the whisper protocol:
+--
+--   client -> server (self-whispers)
+--     SDRE_SYNC                          refresh tooltip position map
+--     SDRE_BAL                           request prestige token balance
+--     SDRE_QUOTE;R;<key>;<entry>         quote reroll/imbue for item at <key>
+--     SDRE_ROLL;<G|T>;<key>;<entry>      pay gold/token and roll
+--     SDRE_QUOTE;T;<sKey>;<sE>;<dKey>;<dE>  quote a transfer
+--     SDRE_XFER;<sKey>;<sE>;<dKey>;<dE>     pay and transfer
+--
+--   server -> client (addon prefix "SpellDraftRE")
+--     OPENUI                              show the frame
+--     BAL;<tokens>
+--     QUOTE;R;<key>;OK;<gold>;<tokens>;<curEnchName>
+--     QUOTE;T;OK;<gold>;<srcEnchName>;<dstEnchName>
+--     QUOTE;<R|T>;ERR;<reason>
+--     RESULT;<R|T>;OK;<key>               action done; map/balances repushed
+--     RESULT;<R|T>;ERR;<reason>
+--
+-- <key> is a tooltip position key ("inv:N" / "bag:B:S"); <entry> is the item
+-- entry id, cross-checked server-side so a moved item can never be mistaken.
 -- ============================================================================
 
 local IMBUE_COST = CONFIG.RE_SERVICE_IMBUE_COST or { [2] = 100000, [3] = 250000, [4] = 500000, [5] = 1000000 }
 local REROLL_MULT = CONFIG.RE_SERVICE_REROLL_MULT or 0.6
 local GOLDEN_TOKENS = CONFIG.RE_SERVICE_GOLDEN_TOKENS or 1
-local SERVICE_MENU_CAP = 15
-local NIBBS_TEXT = 99000
+local TRANSFER_COST = CONFIG.RE_TRANSFER_COST or { [3] = 100000, [4] = 300000, [5] = 600000 }
 
-local serviceSession = {}  -- playerGuidLow -> array of session entries
-
-local function GoldStr(copper)
-    return math.floor(copper / 10000) .. "g"
+local function SendUI(player, ...)
+    player:SendAddonMessage(ADDON_PREFIX, table.concat({ ... }, ";"), 0, player)
 end
 
-local function FindItemByLowGuid(player, lowGuid)
-    local items = CollectCandidateItems(player)
-    for i = 1, #items do
-        if items[i]:GetGUIDLow() == lowGuid then
-            return items[i]
-        end
-    end
-    return nil
+local function SendBalance(player)
+    local q = CharDBQuery("SELECT prestige_tokens FROM prestige_stats WHERE player_id = " .. player:GetGUIDLow())
+    SendUI(player, "BAL", q and q:GetUInt32(0) or 0)
 end
 
-local function ShowServiceMenu(player, creature)
-    local guid = player:GetGUIDLow()
-    local session = {}
-    serviceSession[guid] = session
-
-    player:GossipClearMenu()
-
-    local items = CollectCandidateItems(player)
-    for i = 1, #items do
-        if #session >= SERVICE_MENU_CAP then break end
-        local item = items[i]
-        if IsEligibleItem(item) then
-            local itemGuid = item:GetGUIDLow()
-            local currentId = 0
-            local q = CharDBQuery("SELECT enchantment_id FROM character_item_enchantments WHERE item_guid = " .. itemGuid)
-            if q then
-                currentId = q:GetUInt32(0)
-            end
-            local baseCost = IMBUE_COST[item:GetQuality()] or 250000
-            local entry = {
-                itemGuid = itemGuid,
-                name = item:GetName(),
-                currentId = currentId,
-                cost = currentId > 0 and math.floor(baseCost * REROLL_MULT) or baseCost,
-            }
-            session[#session + 1] = entry
-
-            local label
-            if currentId > 0 and enchants[currentId] then
-                label = "Reroll " .. entry.name .. " [" .. enchants[currentId].name .. "] — " .. GoldStr(entry.cost)
-            else
-                label = "Imbue " .. entry.name .. " — " .. GoldStr(entry.cost)
-            end
-            player:GossipMenuAddItem(6, label, 1, 3100 + #session)
-        end
+-- Resolves a client position key back to the item there (nil if empty).
+local function ResolveKey(player, key)
+    local inv = key:match("^inv:(%d+)$")
+    if inv then
+        local slot = tonumber(inv) - 1
+        if slot < 0 or slot >= EQUIPMENT_SLOT_END then return nil end
+        return player:GetEquippedItemBySlot(slot)
     end
-
-    if #session == 0 then
-        player:GossipMenuAddItem(0, "(You carry nothing I can enchant. Bring me a green-or-better weapon or armor piece.)", 1, 3000)
+    local b, s = key:match("^bag:(%d+):(%d+)$")
+    if not b then return nil end
+    b, s = tonumber(b), tonumber(s)
+    if b == 0 then
+        local slot = BACKPACK_SLOT_START + s - 1
+        if slot < BACKPACK_SLOT_START or slot > BACKPACK_SLOT_END then return nil end
+        return player:GetItemByPos(BACKPACK_BAG, slot)
     end
-    player:GossipMenuAddItem(0, "Back", 1, 1000)
-    player:GossipSendMenu(NIBBS_TEXT, creature)
+    if b < 1 or b > 4 or s < 1 or s > MAX_BAG_SIZE then return nil end
+    return player:GetItemByPos(BAG_SLOT_START + b - 1, s - 1)
 end
 
-local function ShowItemMenu(player, creature, index)
-    local session = serviceSession[player:GetGUIDLow()]
-    local entry = session and session[index]
-    if not entry then
-        ShowServiceMenu(player, creature)
-        return
+-- Resolves and validates an item for a service. Returns item, enchantRow or
+-- nil, errorString. enchantRow is -1 when the item has never been rolled.
+local function ResolveServiceItem(player, key, entry)
+    local item = ResolveKey(player, key)
+    if not item or item:GetEntry() ~= tonumber(entry) then
+        return nil, nil, "Item moved - place it in the slot again"
     end
-
-    player:GossipClearMenu()
-    local verb = entry.currentId > 0 and "Reroll" or "Imbue"
-    player:GossipMenuAddItem(6, verb .. " " .. entry.name .. " for " .. GoldStr(entry.cost), 1, 3300 + index)
-    player:GossipMenuAddItem(6, "Golden Imbue — guaranteed Epic or better (" .. GOLDEN_TOKENS .. " Prestige Token)", 1, 3400 + index)
-    player:GossipMenuAddItem(0, "Back", 1, 3000)
-    player:GossipSendMenu(NIBBS_TEXT, creature)
+    if not IsEligibleItem(item) then
+        return nil, nil, "That item cannot hold a Mystic Enchant"
+    end
+    local row = -1
+    local q = CharDBQuery("SELECT enchantment_id FROM character_item_enchantments WHERE item_guid = " .. item:GetGUIDLow())
+    if q then
+        row = q:GetUInt32(0)
+    end
+    return item, row, nil
 end
 
-local function DoService(player, creature, index, golden)
-    local guid = player:GetGUIDLow()
-    local session = serviceSession[guid]
-    local entry = session and session[index]
-    if not entry then
-        ShowServiceMenu(player, creature)
-        return
+local function RollCostFor(item, row)
+    local base = IMBUE_COST[item:GetQuality()] or 250000
+    if row and row > 0 then
+        return math.floor(base * REROLL_MULT)
     end
+    return base
+end
 
-    local item = FindItemByLowGuid(player, entry.itemGuid)
+local function QuoteRoll(player, key, entry)
+    local item, row, err = ResolveServiceItem(player, key, entry)
     if not item then
-        player:SendBroadcastMessage("|cff00ff00[Mystic Enchant]|r That item is no longer in your possession.")
-        ShowServiceMenu(player, creature)
+        SendUI(player, "QUOTE", "R", "ERR", err)
+        return
+    end
+    -- Quality precedes the name: names can be empty, and empty fields collapse
+    -- in the client's semicolon split, so optional fields must come last.
+    local curName, curQual = "", 0
+    if row > 0 and enchants[row] then
+        curName, curQual = enchants[row].name, enchants[row].quality
+    end
+    SendUI(player, "QUOTE", "R", key, "OK", RollCostFor(item, row), GOLDEN_TOKENS, curQual, curName)
+end
+
+local function DoRoll(player, mode, key, entry)
+    local item, row, err = ResolveServiceItem(player, key, entry)
+    if not item then
+        SendUI(player, "RESULT", "R", "ERR", err)
         return
     end
 
+    local guid = player:GetGUIDLow()
+    local itemGuid = item:GetGUIDLow()
     local invTypeBit = INV_TYPE_BIT[item:GetInventoryType()]
-    local minQuality = golden and 4 or nil
-    local e = PickEnchant(player:GetLevel(), invTypeBit, minQuality, entry.currentId)
+    local minQuality = mode == "T" and 4 or nil
+    local e = PickEnchant(player:GetLevel(), invTypeBit, minQuality, row > 0 and row or nil)
     if not e then
-        player:SendBroadcastMessage("|cff00ff00[Mystic Enchant]|r Nibbs cackles: \"Nothing in my books fits that item at your level!\"")
-        ShowServiceMenu(player, creature)
+        SendUI(player, "RESULT", "R", "ERR", "No eligible enchants for that item at your level")
         return
     end
 
-    -- Charge only after we know the service can succeed.
-    if golden then
+    if mode == "T" then
         local tq = CharDBQuery("SELECT prestige_tokens FROM prestige_stats WHERE player_id = " .. guid)
         local tokens = tq and tq:GetUInt32(0) or 0
         if tokens < GOLDEN_TOKENS then
-            player:SendBroadcastMessage("|cff00ff00[Mystic Enchant]|r You need " .. GOLDEN_TOKENS .. " Prestige Token(s) for a Golden Imbue.")
-            ShowItemMenu(player, creature, index)
+            SendUI(player, "RESULT", "R", "ERR", "You need " .. GOLDEN_TOKENS .. " Prestige Token(s)")
             return
         end
         CharDBQuery("UPDATE prestige_stats SET prestige_tokens = " .. (tokens - GOLDEN_TOKENS) .. " WHERE player_id = " .. guid)
     else
-        if player:GetCoinage() < entry.cost then
-            player:SendBroadcastMessage("|cff00ff00[Mystic Enchant]|r You need " .. GoldStr(entry.cost) .. " for that service.")
-            ShowItemMenu(player, creature, index)
+        local cost = RollCostFor(item, row)
+        if player:GetCoinage() < cost then
+            SendUI(player, "RESULT", "R", "ERR", "Not enough gold")
             return
         end
-        player:ModifyMoney(-entry.cost)
+        player:ModifyMoney(-cost)
     end
 
-    CharDBQuery("DELETE FROM character_item_enchantments WHERE item_guid = " .. entry.itemGuid)
-    CharDBQuery("INSERT INTO character_item_enchantments (item_guid, enchantment_id) VALUES (" .. entry.itemGuid .. ", " .. e.id .. ")")
+    CharDBQuery("DELETE FROM character_item_enchantments WHERE item_guid = " .. itemGuid)
+    CharDBQuery("INSERT INTO character_item_enchantments (item_guid, enchantment_id) VALUES (" .. itemGuid .. ", " .. e.id .. ")")
 
     local color = QUALITY_COLOR[e.quality] or "|cff1eff00"
     player:SendBroadcastMessage("|cff00ff00[Mystic Enchant]|r " .. color .. "[" .. e.name .. "]|r bound to " .. item:GetItemLink() .. "!")
 
-    -- Force a handler + tooltip resync (same items, so the signature would not change).
     invSignature[guid] = nil
     CheckEquipChanges(player)
-    ShowServiceMenu(player, creature)
+    SendBalance(player)
+    SendUI(player, "RESULT", "R", "OK", key)
+end
+
+local function ResolveTransferPair(player, sKey, sEntry, dKey, dEntry)
+    local src, srcRow, err = ResolveServiceItem(player, sKey, sEntry)
+    if not src then return nil, nil, nil, nil, "Source: " .. err end
+    local dst, dstRow, err2 = ResolveServiceItem(player, dKey, dEntry)
+    if not dst then return nil, nil, nil, nil, "Destination: " .. err2 end
+    if src:GetGUIDLow() == dst:GetGUIDLow() then
+        return nil, nil, nil, nil, "Source and destination are the same item"
+    end
+    if not srcRow or srcRow <= 0 or not enchants[srcRow] then
+        return nil, nil, nil, nil, "The source item has no Mystic Enchant"
+    end
+    return src, srcRow, dst, dstRow, nil
+end
+
+local function QuoteTransfer(player, sKey, sEntry, dKey, dEntry)
+    local src, srcRow, dst, dstRow, err = ResolveTransferPair(player, sKey, sEntry, dKey, dEntry)
+    if not src then
+        SendUI(player, "QUOTE", "T", "ERR", err)
+        return
+    end
+    local e = enchants[srcRow]
+    local cost = TRANSFER_COST[e.quality] or 100000
+    local dstName, dstQual = "", 0
+    if dstRow and dstRow > 0 and enchants[dstRow] then
+        dstName, dstQual = enchants[dstRow].name, enchants[dstRow].quality
+    end
+    SendUI(player, "QUOTE", "T", "OK", cost, e.quality, e.name, dstQual, dstName)
+end
+
+local function DoTransfer(player, sKey, sEntry, dKey, dEntry)
+    local src, srcRow, dst, dstRow, err = ResolveTransferPair(player, sKey, sEntry, dKey, dEntry)
+    if not src then
+        SendUI(player, "RESULT", "T", "ERR", err)
+        return
+    end
+
+    local e = enchants[srcRow]
+    local cost = TRANSFER_COST[e.quality] or 100000
+    if player:GetCoinage() < cost then
+        SendUI(player, "RESULT", "T", "ERR", "Not enough gold")
+        return
+    end
+    player:ModifyMoney(-cost)
+
+    -- Source keeps a rolled-nothing marker (no free re-imbue); destination
+    -- takes the enchant, overwriting any it had (client confirms first).
+    CharDBQuery("DELETE FROM character_item_enchantments WHERE item_guid IN (" .. src:GetGUIDLow() .. ", " .. dst:GetGUIDLow() .. ")")
+    CharDBQuery("INSERT INTO character_item_enchantments (item_guid, enchantment_id) VALUES (" .. src:GetGUIDLow() .. ", 0), (" .. dst:GetGUIDLow() .. ", " .. srcRow .. ")")
+
+    local color = QUALITY_COLOR[e.quality] or "|cff1eff00"
+    player:SendBroadcastMessage("|cff00ff00[Mystic Enchant]|r " .. color .. "[" .. e.name .. "]|r transferred to " .. dst:GetItemLink() .. "!")
+
+    local guid = player:GetGUIDLow()
+    invSignature[guid] = nil
+    CheckEquipChanges(player)
+    SendBalance(player)
+    SendUI(player, "RESULT", "T", "OK", dKey)
 end
 
 local function HandleServiceGossip(player, creature, intid)
-    if intid == 3000 then
-        ShowServiceMenu(player, creature)
-    elseif intid > 3400 then
-        DoService(player, creature, intid - 3400, true)
-    elseif intid > 3300 then
-        DoService(player, creature, intid - 3300, false)
-    elseif intid > 3100 then
-        ShowItemMenu(player, creature, intid - 3100)
+    player:GossipComplete()
+    SendUI(player, "OPENUI")
+    SendBalance(player)
+    PushEnchantMap(player)
+end
+
+-- Whisper protocol dispatcher (also serves RETooltip's map resync).
+local whisperWindow = {}  -- playerGuidLow -> { windowStart, count }
+
+local function OnWhisper(_, player, msg, _, _, _)
+    if not RE_ENABLE then return end
+    msg = msg:gsub("%s+$", "")
+    if msg:sub(1, 5) ~= "SDRE_" then return end
+
+    local guid = player:GetGUIDLow()
+    local now = os.time()
+    local limit = whisperWindow[guid]
+    if not limit or limit.windowStart ~= now then
+        whisperWindow[guid] = { windowStart = now, count = 1 }
     else
-        player:GossipComplete()
+        if limit.count >= 10 then
+            return false
+        end
+        limit.count = limit.count + 1
     end
+
+    if msg == "SDRE_SYNC" then
+        PushEnchantMap(player)
+    elseif msg == "SDRE_BAL" then
+        SendBalance(player)
+    else
+        local args = {}
+        for part in msg:gmatch("[^;]+") do
+            args[#args + 1] = part
+        end
+        if args[1] == "SDRE_QUOTE" and args[2] == "R" and args[4] then
+            QuoteRoll(player, args[3], args[4])
+        elseif args[1] == "SDRE_ROLL" and (args[2] == "G" or args[2] == "T") and args[5] == nil and args[4] then
+            DoRoll(player, args[2], args[3], args[4])
+        elseif args[1] == "SDRE_QUOTE" and args[2] == "T" and args[6] then
+            QuoteTransfer(player, args[3], args[4], args[5], args[6])
+        elseif args[1] == "SDRE_XFER" and args[5] then
+            DoTransfer(player, args[2], args[3], args[4], args[5])
+        end
+    end
+    return false
 end
 
 if RE_ENABLE then

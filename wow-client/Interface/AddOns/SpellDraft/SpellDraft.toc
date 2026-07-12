@@ -15,3 +15,4 @@ ComboPoints.lua
 AmmoFix.lua
 TotemBarFix.lua
 RETooltip.lua
+REServices.lua

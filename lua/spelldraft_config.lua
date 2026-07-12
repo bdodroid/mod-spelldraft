@@ -597,6 +597,14 @@ CONFIG = {
     },
     RE_SERVICE_REROLL_MULT = 0.6, --Reroll costs this fraction of the imbue price
     RE_SERVICE_GOLDEN_TOKENS = 1, --Prestige Token cost for a Golden Imbue (guaranteed Epic+ enchant)
+
+    --Transfer service: move an enchant from one item to another.
+    --Costs in COPPER, keyed by the ENCHANT's quality (3 Rare, 4 Epic, 5 Legendary).
+    RE_TRANSFER_COST = {
+        [3] = 100000,   -- Rare enchant: 10g
+        [4] = 300000,   -- Epic enchant: 30g
+        [5] = 600000,   -- Legendary enchant: 60g
+    },
 }
 
 function CONFIG.EnsurePlayerLanguage(player)

@@ -864,7 +864,7 @@ local function OnNibbsGossipHello(event, player, creature)
 
     -- Mystic Enchant services (handled by spelldraft_re.lua via SpellDraftRE)
     if SpellDraftRE then
-        player:GossipMenuAddItem(6, "Mystic Enchant services (reroll & imbue)", 1, 3000)
+        player:GossipMenuAddItem(6, "Open Mystic Enchant services", 1, 3000)
     end
 
     if inDraft then
