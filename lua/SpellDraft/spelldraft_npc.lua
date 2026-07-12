@@ -861,7 +861,12 @@ local function OnNibbsGossipHello(event, player, creature)
     
     -- Option 1: Reagent merchant (vendor) - Use icon ID 1 (Vendor bag)
     player:GossipMenuAddItem(1, "I need to purchase reagents and bags.", 1, 1001)
-    
+
+    -- Mystic Enchant services (handled by spelldraft_re.lua via SpellDraftRE)
+    if SpellDraftRE then
+        player:GossipMenuAddItem(6, "Mystic Enchant services (reroll & imbue)", 1, 3000)
+    end
+
     if inDraft then
         -- Option 2: Reset Custom Talents - Use icon ID 0 (Speech bubble)
         player:GossipMenuAddItem(0, "I want to reset my custom talents (Free)", 1, 1002)
@@ -881,7 +886,17 @@ end
 local function OnNibbsGossipSelect(event, player, creature, sender, intid, code)
     if IsBotPlayer(player) then return false end
     local guid = player:GetGUIDLow()
-    
+
+    -- Mystic Enchant services live in spelldraft_re.lua
+    if intid >= 3000 and intid < 4000 then
+        if SpellDraftRE then
+            SpellDraftRE.HandleGossip(player, creature, intid)
+        else
+            player:GossipComplete()
+        end
+        return true
+    end
+
     if intid == 1001 then
         player:GossipComplete()
         player:SendListInventory(creature)

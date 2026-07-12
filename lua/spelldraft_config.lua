@@ -586,6 +586,17 @@ CONFIG = {
     RE_BOTS_CAN_ROLL = false, --When false, playerbot loot never rolls REs (saves DB churn)
 
     RE_SYNC_INTERVAL_MS = 2000, --How often equipped gear is re-scanned for enchant aura sync
+
+    --Nibbs the Imp's Mystic Enchant services (Wave 4 economy).
+    --Imbue = add an enchant to an un-enchanted item. Costs in COPPER, keyed by ITEM quality.
+    RE_SERVICE_IMBUE_COST = {
+        [2] = 100000,   -- Uncommon: 10g
+        [3] = 250000,   -- Rare: 25g
+        [4] = 500000,   -- Epic: 50g
+        [5] = 1000000,  -- Legendary: 100g
+    },
+    RE_SERVICE_REROLL_MULT = 0.6, --Reroll costs this fraction of the imbue price
+    RE_SERVICE_GOLDEN_TOKENS = 1, --Prestige Token cost for a Golden Imbue (guaranteed Epic+ enchant)
 }
 
 function CONFIG.EnsurePlayerLanguage(player)

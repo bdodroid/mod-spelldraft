@@ -216,10 +216,12 @@ local function PushEnchantMap(player, positions)
     end
 end
 
-local function PickEnchant(playerLevel, invTypeBit)
+local function PickEnchant(playerLevel, invTypeBit, minQuality, excludeId)
     local eligible, total = {}, 0
     for _, e in pairs(enchants) do
-        if e.minLevel <= playerLevel and bit_and(e.slotMask, invTypeBit) ~= 0 then
+        if e.minLevel <= playerLevel and bit_and(e.slotMask, invTypeBit) ~= 0
+            and (not minQuality or e.quality >= minQuality)
+            and e.id ~= excludeId then
             eligible[#eligible + 1] = e
             total = total + e.weight
         end
@@ -757,7 +759,176 @@ local function OnCommand(_, player, command, _)
     return false
 end
 
+-- ============================================================================
+-- Nibbs' Mystic Enchant services (Wave 4 economy)
+--
+-- Reached from Nibbs the Imp's gossip (spelldraft_npc.lua routes intids
+-- 3000-3999 here via the SpellDraftRE global). Services:
+--     Reroll       replace an item's enchant with a new random one (gold)
+--     Imbue        add an enchant to an un-enchanted item (gold)
+--     Golden Imbue guaranteed Epic-or-better enchant (Prestige Tokens)
+-- ============================================================================
+
+local IMBUE_COST = CONFIG.RE_SERVICE_IMBUE_COST or { [2] = 100000, [3] = 250000, [4] = 500000, [5] = 1000000 }
+local REROLL_MULT = CONFIG.RE_SERVICE_REROLL_MULT or 0.6
+local GOLDEN_TOKENS = CONFIG.RE_SERVICE_GOLDEN_TOKENS or 1
+local SERVICE_MENU_CAP = 15
+local NIBBS_TEXT = 99000
+
+local serviceSession = {}  -- playerGuidLow -> array of session entries
+
+local function GoldStr(copper)
+    return math.floor(copper / 10000) .. "g"
+end
+
+local function FindItemByLowGuid(player, lowGuid)
+    local items = CollectCandidateItems(player)
+    for i = 1, #items do
+        if items[i]:GetGUIDLow() == lowGuid then
+            return items[i]
+        end
+    end
+    return nil
+end
+
+local function ShowServiceMenu(player, creature)
+    local guid = player:GetGUIDLow()
+    local session = {}
+    serviceSession[guid] = session
+
+    player:GossipClearMenu()
+
+    local items = CollectCandidateItems(player)
+    for i = 1, #items do
+        if #session >= SERVICE_MENU_CAP then break end
+        local item = items[i]
+        if IsEligibleItem(item) then
+            local itemGuid = item:GetGUIDLow()
+            local currentId = 0
+            local q = CharDBQuery("SELECT enchantment_id FROM character_item_enchantments WHERE item_guid = " .. itemGuid)
+            if q then
+                currentId = q:GetUInt32(0)
+            end
+            local baseCost = IMBUE_COST[item:GetQuality()] or 250000
+            local entry = {
+                itemGuid = itemGuid,
+                name = item:GetName(),
+                currentId = currentId,
+                cost = currentId > 0 and math.floor(baseCost * REROLL_MULT) or baseCost,
+            }
+            session[#session + 1] = entry
+
+            local label
+            if currentId > 0 and enchants[currentId] then
+                label = "Reroll " .. entry.name .. " [" .. enchants[currentId].name .. "] — " .. GoldStr(entry.cost)
+            else
+                label = "Imbue " .. entry.name .. " — " .. GoldStr(entry.cost)
+            end
+            player:GossipMenuAddItem(6, label, 1, 3100 + #session)
+        end
+    end
+
+    if #session == 0 then
+        player:GossipMenuAddItem(0, "(You carry nothing I can enchant. Bring me a green-or-better weapon or armor piece.)", 1, 3000)
+    end
+    player:GossipMenuAddItem(0, "Back", 1, 1000)
+    player:GossipSendMenu(NIBBS_TEXT, creature)
+end
+
+local function ShowItemMenu(player, creature, index)
+    local session = serviceSession[player:GetGUIDLow()]
+    local entry = session and session[index]
+    if not entry then
+        ShowServiceMenu(player, creature)
+        return
+    end
+
+    player:GossipClearMenu()
+    local verb = entry.currentId > 0 and "Reroll" or "Imbue"
+    player:GossipMenuAddItem(6, verb .. " " .. entry.name .. " for " .. GoldStr(entry.cost), 1, 3300 + index)
+    player:GossipMenuAddItem(6, "Golden Imbue — guaranteed Epic or better (" .. GOLDEN_TOKENS .. " Prestige Token)", 1, 3400 + index)
+    player:GossipMenuAddItem(0, "Back", 1, 3000)
+    player:GossipSendMenu(NIBBS_TEXT, creature)
+end
+
+local function DoService(player, creature, index, golden)
+    local guid = player:GetGUIDLow()
+    local session = serviceSession[guid]
+    local entry = session and session[index]
+    if not entry then
+        ShowServiceMenu(player, creature)
+        return
+    end
+
+    local item = FindItemByLowGuid(player, entry.itemGuid)
+    if not item then
+        player:SendBroadcastMessage("|cff00ff00[Mystic Enchant]|r That item is no longer in your possession.")
+        ShowServiceMenu(player, creature)
+        return
+    end
+
+    local invTypeBit = INV_TYPE_BIT[item:GetInventoryType()]
+    local minQuality = golden and 4 or nil
+    local e = PickEnchant(player:GetLevel(), invTypeBit, minQuality, entry.currentId)
+    if not e then
+        player:SendBroadcastMessage("|cff00ff00[Mystic Enchant]|r Nibbs cackles: \"Nothing in my books fits that item at your level!\"")
+        ShowServiceMenu(player, creature)
+        return
+    end
+
+    -- Charge only after we know the service can succeed.
+    if golden then
+        local tq = CharDBQuery("SELECT prestige_tokens FROM prestige_stats WHERE player_id = " .. guid)
+        local tokens = tq and tq:GetUInt32(0) or 0
+        if tokens < GOLDEN_TOKENS then
+            player:SendBroadcastMessage("|cff00ff00[Mystic Enchant]|r You need " .. GOLDEN_TOKENS .. " Prestige Token(s) for a Golden Imbue.")
+            ShowItemMenu(player, creature, index)
+            return
+        end
+        CharDBQuery("UPDATE prestige_stats SET prestige_tokens = " .. (tokens - GOLDEN_TOKENS) .. " WHERE player_id = " .. guid)
+    else
+        if player:GetCoinage() < entry.cost then
+            player:SendBroadcastMessage("|cff00ff00[Mystic Enchant]|r You need " .. GoldStr(entry.cost) .. " for that service.")
+            ShowItemMenu(player, creature, index)
+            return
+        end
+        player:ModifyMoney(-entry.cost)
+    end
+
+    CharDBQuery("DELETE FROM character_item_enchantments WHERE item_guid = " .. entry.itemGuid)
+    CharDBQuery("INSERT INTO character_item_enchantments (item_guid, enchantment_id) VALUES (" .. entry.itemGuid .. ", " .. e.id .. ")")
+
+    local color = QUALITY_COLOR[e.quality] or "|cff1eff00"
+    player:SendBroadcastMessage("|cff00ff00[Mystic Enchant]|r " .. color .. "[" .. e.name .. "]|r bound to " .. item:GetItemLink() .. "!")
+
+    -- Force a handler + tooltip resync (same items, so the signature would not change).
+    invSignature[guid] = nil
+    CheckEquipChanges(player)
+    ShowServiceMenu(player, creature)
+end
+
+local function HandleServiceGossip(player, creature, intid)
+    if intid == 3000 then
+        ShowServiceMenu(player, creature)
+    elseif intid > 3400 then
+        DoService(player, creature, intid - 3400, true)
+    elseif intid > 3300 then
+        DoService(player, creature, intid - 3300, false)
+    elseif intid > 3100 then
+        ShowItemMenu(player, creature, intid - 3100)
+    else
+        player:GossipComplete()
+    end
+end
+
 if RE_ENABLE then
+    -- Cross-file API: spelldraft_npc.lua routes Nibbs gossip intids 3000-3999 here.
+    SpellDraftRE = { HandleGossip = HandleServiceGossip }
+
+    -- Sweep enchant rows whose item instances no longer exist (deleted,
+    -- disenchanted, expired mail). Runs once per script load.
+    CharDBExecute("DELETE ci FROM character_item_enchantments ci LEFT JOIN item_instance ii ON ii.guid = ci.item_guid WHERE ii.guid IS NULL")
+
     RegisterPlayerEvent(42, OnCommand)             -- PLAYER_EVENT_ON_COMMAND
     RegisterPlayerEvent(32, OnLootItem)            -- PLAYER_EVENT_ON_LOOT_ITEM
     RegisterPlayerEvent(51, OnQuestRewardItem)     -- PLAYER_EVENT_ON_QUEST_REWARD_ITEM
