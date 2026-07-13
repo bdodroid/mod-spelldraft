@@ -33,10 +33,13 @@ GROUP BY ct.lootid;
 --    Display 928 = glowing tome pedestal ("Tome of the Cabal" model)
 -- ============================================================================
 DELETE FROM `gameobject_template` WHERE `entry` BETWEEN 500001 AND 500003;
-INSERT INTO `gameobject_template` (`entry`, `type`, `displayId`, `name`, `size`, `Data0`, `Data1`) VALUES
-    (500001, 3, 928, 'Forgotten Grimoire', 1, 0, 500001),
-    (500002, 3, 928, 'Forgotten Grimoire', 1, 0, 500002),
-    (500003, 3, 928, 'Forgotten Grimoire', 1, 0, 500003);
+-- size 0.3 and lock 57 (Open + Treasure) match freely-lootable chests; Data2 = 10800
+-- makes the tome restock every 3h (stays visible, goes inert between loots) match the native Tome of the Cabal;
+-- size 1.0 renders as a room-sized book and lock 0 is not openable.
+INSERT INTO `gameobject_template` (`entry`, `type`, `displayId`, `name`, `size`, `Data0`, `Data1`, `Data2`, `Data3`) VALUES
+    (500001, 3, 928, 'Forgotten Grimoire', 0.3, 57, 500001, 10800, 0),
+    (500002, 3, 928, 'Forgotten Grimoire', 0.3, 57, 500002, 10800, 0),
+    (500003, 3, 928, 'Forgotten Grimoire', 0.3, 57, 500003, 10800, 0);
 
 DELETE FROM `gameobject_loot_template` WHERE `Entry` BETWEEN 500001 AND 500003;
 INSERT INTO `gameobject_loot_template` (`Entry`, `Item`, `Reference`, `Chance`, `QuestRequired`, `LootMode`, `GroupId`, `MinCount`, `MaxCount`, `Comment`) VALUES

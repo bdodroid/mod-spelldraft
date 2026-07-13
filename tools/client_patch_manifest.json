@@ -1,5 +1,5 @@
 {
-  "_comment": "Custom glyph definitions \u2014 single source of truth for tools/build_client_patch.py. IDs: glyph_id 1501+, item_entry 100001+ (must stay above native max ~57576), apply_spell 200001+, marker_spell 200101+. type minor|major decides the socket. handler display|proc|none drives spelldraft_glyphs.lua (display data = 'formAuraIds:displayId', proc data = recipe key in spelldraft_re.lua). effect_spell: set to a native aura spell id to let the core apply a real effect (marker_spell then unused). socket_icon = SpellIcon id drawn in the glyph socket (UI-Glyph-Rune-* range 3110-3128); spell_icon = SpellIcon id for the glyph's spells (ability art). creature_model_data/creature_display_info: full DBC rows (strings inline, floats as raw int bits) appended client+server. model_files: archive path -> source file/dir copied into the MPQ.",
+  "_comment": "Custom glyph definitions \u2014 single source of truth for tools/build_client_patch.py. IDs: glyph_id 1501+, item_entry 100001+ (must stay above native max ~57576), apply_spell 200001+, marker_spell 200101+. type minor|major decides the socket. handler display|proc|none drives spelldraft_glyphs.lua (display data = 'formAuraIds:displayId', proc data = recipe key in spelldraft_re.lua). effect_spell: set to a native aura spell id to let the core apply a real effect (marker_spell then unused). socket_icon = SpellIcon id drawn in the glyph socket (UI-Glyph-Rune-* range 3110-3128); spell_icon = SpellIcon id for the glyph's spells (ability art). creature_model_data/creature_display_info: full DBC rows (strings inline, floats as raw int bits) appended client+server. model_files: archive path -> source file/dir copied into the MPQ. verbatim_files: custom DBCs copied into the archive unchanged (wholesale replacements, e.g. CharTitles for custom titles \u2014 replaces the old separate patch-P.mpq).",
   "glyphs": [
     {
       "glyph_id": 1501,
@@ -45,6 +45,21 @@
       "handler_data": "5487,9634:99849",
       "socket_icon": 3110,
       "spell_icon": 107
+    },
+    {
+      "glyph_id": 1504,
+      "item_entry": 100004,
+      "apply_spell": 200004,
+      "marker_spell": 200104,
+      "effect_spell": null,
+      "name": "Glyph of the Wolf",
+      "type": "minor",
+      "tooltip": "While in Cat Form, you take the shape of a night-black ravager wolf.",
+      "item_display": 52559,
+      "handler": "display",
+      "handler_data": "768:741",
+      "socket_icon": 3117,
+      "spell_icon": 1178
     }
   ],
   "creature_model_data": [
@@ -110,12 +125,48 @@
         0,
         0
       ]
+    },
+    {
+      "string_fields": [
+        6,
+        7,
+        8,
+        9
+      ],
+      "row": [
+        99851,
+        3011,
+        0,
+        0,
+        1065353216,
+        255,
+        "Harkoa",
+        "HarkoaGlow",
+        "",
+        "",
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
     }
   ],
   "model_dirs": [
     {
       "src": "/run/media/system/Storage/Games/AscensionWow/Ascension Launcher/resources/ascension-live/Backup/CustomMPQs/patch-CW/Creature/werebear",
       "dest": "Creature\\werebear"
+    }
+  ],
+  "verbatim_files": [
+    {
+      "src": "dbc/CharBaseInfo.dbc",
+      "dest": "DBFilesClient\\CharBaseInfo.dbc"
+    },
+    {
+      "src": "dbc/CharTitles.dbc",
+      "dest": "DBFilesClient\\CharTitles.dbc"
     }
   ]
 }

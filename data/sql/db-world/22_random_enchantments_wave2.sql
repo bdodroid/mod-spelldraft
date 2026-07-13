@@ -12,7 +12,7 @@ INSERT INTO `custom_random_enchantments`
     (900001, 'Spirit of Arcturis', 'While in Bear Form or Dire Bear Form, you take the shape of the spirit bear Arcturis.', 5, 3, 20, 65535, 'display', '5487,9634:31094'),
     (900002, 'Plaguebear', 'While in Bear Form or Dire Bear Form, you take the shape of a plague-ridden grizzly.', 4, 8, 15, 65535, 'display', '5487,9634:1083'),
     (900003, 'Spectre of Gondria', 'While in Cat Form, you take the shape of the spectral tiger Gondria.', 5, 3, 20, 65535, 'display', '768:28871'),
-    (900004, 'Ghost Saber', 'While in Cat Form, you take the shape of a ghostly saber cat.', 4, 8, 15, 65535, 'display', '768:4472'),
+    (900004, 'Ghost Saber', 'While in Cat Form, you take the shape of the spectral snow leopard Har\'koa.', 4, 8, 15, 65535, 'display', '768:99851'),
     (900005, 'Spirit of Skoll', 'While in Ghost Wolf form, you take the shape of the storm wolf Skoll.', 4, 8, 15, 65535, 'display', '2645:29673'),
     (900011, 'Sparkflame', 'Your Fireball casts have a 15% chance to hurl a free Fire Blast at your target.', 4, 8, 20, 65535, 'proc', 'sparkflame'),
     (900012, 'Thunderstruck', 'Your Lightning Bolt casts have a 15% chance to unleash a free Chain Lightning.', 4, 8, 20, 65535, 'proc', 'thunderstruck'),

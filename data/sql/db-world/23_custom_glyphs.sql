@@ -33,35 +33,35 @@ UPDATE `item_template` SET
     `name` = 'Glyph of the White Bear', `Quality` = 3, `RequiredLevel` = 15, `bonding` = 2,
     `BuyPrice` = 0, `SellPrice` = 25000, `stackable` = 1, `maxcount` = 0,
     `spellid_1` = 54291, `spelltrigger_1` = 0, `spellcharges_1` = -1,
-    `description` = 'While in Bear Form or Dire Bear Form, you take the shape of the great white spirit bear Arcturis. (Minor Glyph)'
+    `description` = ''
 WHERE `entry` = 40484;
 
 UPDATE `item_template` SET
     `name` = 'Glyph of the Red Lynx', `Quality` = 3, `RequiredLevel` = 15, `bonding` = 2,
     `BuyPrice` = 0, `SellPrice` = 25000, `stackable` = 1, `maxcount` = 0,
     `spellid_1` = 54910, `spelltrigger_1` = 0, `spellcharges_1` = -1,
-    `description` = 'While in Cat Form, you take the shape of a flame-furred springpaw lynx. (Minor Glyph)'
+    `description` = ''
 WHERE `entry` = 40948;
 
 UPDATE `item_template` SET
     `name` = 'Glyph of the Black Bear', `Quality` = 3, `RequiredLevel` = 15, `bonding` = 2,
     `BuyPrice` = 0, `SellPrice` = 25000, `stackable` = 1, `maxcount` = 0,
     `spellid_1` = 58173, `spelltrigger_1` = 0, `spellcharges_1` = -1,
-    `description` = 'While in Bear Form or Dire Bear Form, you take the shape of a night-black ashenvale bear. (Minor Glyph)'
+    `description` = ''
 WHERE `entry` = 43336;
 
 UPDATE `item_template` SET
     `name` = 'Glyph of the Forest Lynx', `Quality` = 3, `RequiredLevel` = 15, `bonding` = 2,
     `BuyPrice` = 0, `SellPrice` = 25000, `stackable` = 1, `maxcount` = 0,
     `spellid_1` = 58166, `spelltrigger_1` = 0, `spellcharges_1` = -1,
-    `description` = 'While in Cat Form, you take the shape of a shadowy forest nightsaber. (Minor Glyph)'
+    `description` = ''
 WHERE `entry` = 43337;
 
 UPDATE `item_template` SET
     `name` = 'Glyph of the Black Wolf', `Quality` = 3, `RequiredLevel` = 15, `bonding` = 2,
     `BuyPrice` = 0, `SellPrice` = 25000, `stackable` = 1, `maxcount` = 0,
     `spellid_1` = 58262, `spelltrigger_1` = 0, `spellcharges_1` = -1,
-    `description` = 'While in Ghost Wolf form, you take the shape of the storm wolf Skoll. (Minor Glyph)'
+    `description` = ''
 WHERE `entry` = 43384;
 
 -- ============================================================================
@@ -79,5 +79,5 @@ INSERT INTO `custom_glyphs` (`glyph_id`, `name`, `handler`, `handler_data`) VALU
     (141, 'Glyph of the White Bear', 'display', '5487,9634:31094'),
     (182, 'Glyph of the Red Lynx', 'display', '768:18167'),
     (438, 'Glyph of the Black Bear', 'display', '5487,9634:706'),
-    (436, 'Glyph of the Forest Lynx', 'display', '768:3030'),
-    (472, 'Glyph of the Black Wolf', 'display', '2645:29673');
+    (436, 'Glyph of the Forest Lynx', 'display', '768:16245'),
+    (472, 'Glyph of the Black Wolf', 'display', '2645:741');

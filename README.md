@@ -23,7 +23,7 @@ Designed primarily for players who want a fun, rogue-like draft experience on th
 If you are a player connecting to a server running SpellDraft, you do **not** need to install or build the server module. You only need the client files:
 1. Go to the **Releases** section of this repository and download the latest `wow-client.zip`.
 2. Extract the zip file and copy the contents (`Data/` and `Interface/` folders) directly into your World of Warcraft game directory, merging them with your existing folders.
-3. **Fully close and relaunch the game** after copying — the `Data/patch-P.mpq` and `Data/patch-S.mpq` archives (custom titles, spells, and glyphs) only load at client startup, not on `/reload`.
+3. **Fully close and relaunch the game** after copying — the `Data/patch-P.mpq` archive (custom titles, spells, glyphs, and models) only loads at client startup, not on `/reload`.
 
 ---
 
@@ -146,7 +146,7 @@ We provide an automated script that performs all server-side staging, configurat
    cd modules/mod-spelldraft
    ./install.sh
    ```
- 3. **Install Client files:** Copy/merge the contents of the `wow-client/` directory in the cloned repository directly into your World of Warcraft game directory (so that `wow-client/Data/patch-P.mpq` merges with `Data/patch-P.mpq` and `wow-client/Interface/AddOns/SpellDraft` merges with `Interface/AddOns/SpellDraft`).
+ 3. **Install Client files:** Copy/merge the contents of the `wow-client/` directory in the cloned repository directly into your World of Warcraft game directory (so that `wow-client/Data/patch-P.mpq` lands in your client's `Data/` folder and `wow-client/Interface/AddOns/SpellDraft` merges with `Interface/AddOns/SpellDraft`).
  4. Restart your server!
 
 ---
