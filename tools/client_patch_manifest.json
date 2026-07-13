@@ -1,0 +1,35 @@
+{
+  "_comment": "Custom glyph definitions \u2014 single source of truth for tools/build_client_patch.py. IDs: glyph_id 1501+, item_entry 100001+ (must stay above native max ~57576), apply_spell 200001+, marker_spell 200101+. type minor|major decides the socket. handler display|proc|none drives spelldraft_glyphs.lua (display data = 'formAuraIds:displayId', proc data = recipe key in spelldraft_re.lua). effect_spell: set to a native aura spell id to let the core apply a real effect (marker_spell then unused). socket_icon = SpellIcon id drawn in the glyph socket (UI-Glyph-Rune-* range 3110-3128); spell_icon = SpellIcon id for the glyph's spells (ability art).",
+  "glyphs": [
+    {
+      "glyph_id": 1501,
+      "item_entry": 100001,
+      "apply_spell": 200001,
+      "marker_spell": 200101,
+      "effect_spell": null,
+      "name": "Glyph of the Orca",
+      "type": "minor",
+      "tooltip": "While in Aquatic Form, you take the shape of a mighty orca.",
+      "item_display": 52559,
+      "handler": "display",
+      "handler_data": "1066:21975",
+      "socket_icon": 3125,
+      "spell_icon": 1475
+    },
+    {
+      "glyph_id": 1502,
+      "item_entry": 100002,
+      "apply_spell": 200002,
+      "marker_spell": 200102,
+      "effect_spell": null,
+      "name": "Glyph of the Zealot",
+      "type": "major",
+      "tooltip": "Your melee strikes have a 10% chance to unleash an Exorcism upon your target. (8 sec cooldown)",
+      "item_display": 58828,
+      "handler": "proc",
+      "handler_data": "zealot",
+      "socket_icon": 3128,
+      "spell_icon": 292
+    }
+  ]
+}

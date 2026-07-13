@@ -429,7 +429,21 @@ local function SyncAuras(player)
     end
 
     appliedAuras[guid] = applied
+
+    -- Merge displays and proc recipes granted by socketed custom glyphs
+    -- (spelldraft_glyphs.lua) with the item-enchant ones.
+    if SpellDraftGlyphs then
+        local glyphDisplays = SpellDraftGlyphs.GetDisplays(player)
+        for i = 1, #glyphDisplays do
+            displays[#displays + 1] = glyphDisplays[i]
+        end
+        for key in pairs(SpellDraftGlyphs.GetProcs(player)) do
+            procs[key] = true
+        end
+    end
+
     activeProcs[guid] = next(procs) and procs or nil
+
     activeDisplays[guid] = #displays > 0 and displays or nil
     ReconcileDisplay(player)
 end
@@ -439,6 +453,10 @@ end
 local function CheckEquipChanges(player)
     local guid = player:GetGUIDLow()
     local positions, sig = CollectInventoryPositions(player)
+    if SpellDraftGlyphs then
+        -- Socketing/removing a custom glyph must also trigger a resync.
+        sig = sig .. "|" .. SpellDraftGlyphs.GetSignature(player)
+    end
     if invSignature[guid] ~= sig then
         invSignature[guid] = sig
         SyncAuras(player)
@@ -598,6 +616,14 @@ local PROC_RECIPES = {
             if math.random(100) > 10 then return end
             if not PassICD(player, "battlemage", 6) then return end
             player:CastSpell(target, ICE_LANCE_MAX, true)
+        end,
+    },
+    -- Glyph of the Zealot (custom major glyph, see client_patch_manifest.json)
+    zealot = {
+        onMeleeDamage = function(player, target)
+            if math.random(100) > 10 then return end
+            if not PassICD(player, "zealot", 8) then return end
+            player:CastSpell(target, 48801, true) -- Exorcism (max rank)
         end,
     },
     killheal = {

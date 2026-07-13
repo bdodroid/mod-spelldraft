@@ -22,6 +22,7 @@ QUALITY = {'UNCOMMON': 2, 'RARE': 3, 'EPIC': 4, 'LEGENDARY': 5, 'ARTIFACT': 6}
 ALL_SLOTS_MASK = 0xFFFF
 
 
+
 def clean_tooltip(desc):
     desc = re.sub(r'@req:\d+:req@', '', desc)
     desc = re.sub(r'@s:\d+:[-\d]+', '', desc)

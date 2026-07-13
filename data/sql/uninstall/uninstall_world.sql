@@ -149,6 +149,21 @@ INSERT INTO `creature_loot_template` (`Entry`, `Item`, `Reference`, `Chance`, `Q
 
 -- 3. Drop module-owned DBC/lookup tables and delete talent_dbc contents
 DROP TABLE IF EXISTS `custom_random_enchantments`;
+DROP TABLE IF EXISTS `custom_glyphs`;
+DELETE FROM `glyphproperties_dbc` WHERE `ID` BETWEEN 1501 AND 1520;
+DELETE FROM `spell_dbc` WHERE `ID` BETWEEN 200001 AND 200199;
+DELETE FROM `item_template` WHERE `entry` BETWEEN 100001 AND 100020;
+-- Restore the five repurposed beta glyph items to their deprecated originals
+UPDATE `item_template` SET `name` = 'Deprecated Glyph of the White Bear', `Quality` = 1, `RequiredLevel` = 50, `bonding` = 0, `SellPrice` = 0, `spellid_1` = 0, `spellcharges_1` = 0, `description` = '' WHERE `entry` = 40484;
+UPDATE `item_template` SET `name` = 'Deprecated Glyph of the Red Lynx', `Quality` = 1, `RequiredLevel` = 50, `bonding` = 0, `SellPrice` = 0, `spellid_1` = 0, `spellcharges_1` = 0, `description` = '' WHERE `entry` = 40948;
+UPDATE `item_template` SET `name` = 'Deprecated Glyph of the Black Bear', `Quality` = 1, `RequiredLevel` = 50, `bonding` = 0, `SellPrice` = 0, `spellid_1` = 0, `spellcharges_1` = 0, `description` = '' WHERE `entry` = 43336;
+UPDATE `item_template` SET `name` = 'Deprecated Glyph of the Forest Lynx', `Quality` = 1, `RequiredLevel` = 50, `bonding` = 0, `SellPrice` = 0, `spellid_1` = 58166, `spellcharges_1` = 0, `description` = '' WHERE `entry` = 43337;
+UPDATE `item_template` SET `name` = 'Deprecated Glyph of the Black Wolf', `Quality` = 1, `RequiredLevel` = 20, `bonding` = 0, `SellPrice` = 0, `spellid_1` = 58262, `spellcharges_1` = 0, `description` = '' WHERE `entry` = 43384;
+DELETE FROM `reference_loot_template` WHERE `Entry` = 90001;
+DELETE FROM `creature_loot_template` WHERE `Item` = 90001 AND `Reference` = 90001;
+DELETE FROM `gameobject_loot_template` WHERE `Entry` BETWEEN 500001 AND 500003;
+DELETE FROM `gameobject` WHERE `guid` BETWEEN 5720001 AND 5720003;
+DELETE FROM `gameobject_template` WHERE `entry` BETWEEN 500001 AND 500003;
 DROP TABLE IF EXISTS `dbc_spells`;
 DROP TABLE IF EXISTS `dbc_skilllineability`;
 DROP TABLE IF EXISTS `dbc_skillline`;

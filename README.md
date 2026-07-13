@@ -23,6 +23,7 @@ Designed primarily for players who want a fun, rogue-like draft experience on th
 If you are a player connecting to a server running SpellDraft, you do **not** need to install or build the server module. You only need the client files:
 1. Go to the **Releases** section of this repository and download the latest `wow-client.zip`.
 2. Extract the zip file and copy the contents (`Data/` and `Interface/` folders) directly into your World of Warcraft game directory, merging them with your existing folders.
+3. **Fully close and relaunch the game** after copying — the `Data/patch-P.mpq` and `Data/patch-S.mpq` archives (custom titles, spells, and glyphs) only load at client startup, not on `/reload`.
 
 ---
 
@@ -65,6 +66,28 @@ To facilitate draft customization and progression during leveling, enemies drop 
 *   **Tome of Talents**: Consuming this tome opens a draft selection screen allowing you to choose one passive talent from any class matching your level.
 
 These items drop from normal enemies throughout the world, with dungeon and raid bosses having a significantly increased chance to drop them.
+
+---
+
+## Mystic Enchants (Random Loot Enchantments)
+
+Weapons and armor of Uncommon quality or better that you **loot, craft, or win** have a chance to roll a **Mystic Enchant** — a bonus effect bound to that specific item, shown as an extra line on its tooltip:
+*   **Glyph-tier enchants** grant a passive glyph effect while the item is equipped.
+*   **Proc enchants** trigger cross-class effects in combat (e.g. Fireball casts hurling a free Fire Blast).
+*   **Form enchants** change your shapeshift appearance (e.g. Bear Form becoming the spirit bear Arcturis).
+
+Visit **Nibbs the Imp** and choose *Open Mystic Enchant services* for the enchanting window:
+*   **Reroll / Imbue** — drag an item into the slot and pay gold to reroll its enchant, or to add one to an un-enchanted item.
+*   **Golden Imbue** — spend a **Prestige Token** for a guaranteed **Epic-or-better** enchant.
+*   **Transfer** — pay gold (scaling with the enchant's rarity) to move an enchant from one item to another. Overwriting the destination's enchant asks for confirmation; the source keeps a spent marker.
+
+## Cosmetic & Custom Glyphs
+
+Rare world drops include **glyphs that socket through the standard Glyphs panel** (talent window, level 15+):
+*   **Minor cosmetic glyphs** change a shapeshift form's appearance: *White Bear, Black Bear, Red Lynx, Forest Lynx, Black Wolf* (Blizzard's scrapped beta glyphs, restored) and *Glyph of the Orca* (aquatic form).
+*   **Major effect glyphs** add new combat effects, such as *Glyph of the Zealot* (melee strikes can unleash an Exorcism).
+
+Any creature can rarely drop one (bosses far more often), and three **Forgotten Grimoire** tomes hidden in remote corners of Azeroth and Northrend each hold a guaranteed random glyph for explorers who find them.
 
 ---
 
@@ -270,6 +293,17 @@ For testing and verification in-game, you can use the following `.additem` comma
 *   **Lost Grimoire**: `.additem 13149 <count>` (triggers an immediate bonus active spell draft)
 *   **Scroll of Reroll**: `.additem 4427 <count>` (adds +1 Reroll charges)
 *   **Scroll of Ban**: `.additem 1078 <count>` (adds +1 Ban charges)
+
+### Mystic Enchants
+*   `.rollre` — force-rolls a Mystic Enchant on every eligible weapon/armor item you carry (equipped + bags) at 100% chance; re-running it rerolls them.
+*   Enchant services UI: talk to **Nibbs the Imp** (NPC `99000`) → *Open Mystic Enchant services*.
+
+### Custom Glyphs
+*   **Glyph of the Orca** (minor, cosmetic): `.additem 100001`
+*   **Glyph of the Zealot** (major, effect): `.additem 100002`
+*   Beta cosmetic glyphs: `.additem 40484` (White Bear), `.additem 40948` (Red Lynx), `.additem 43336` (Black Bear), `.additem 43337` (Forest Lynx), `.additem 43384` (Black Wolf)
+*   Open the talent window → **Glyphs** tab, click the glyph item, then click a matching socket (level 15+). Minor glyphs morph the listed form; check effect glyphs with their combat proc.
+*   Forgotten Grimoire spawns: `.go xyz -10782 -1378 40 0` (Duskwood), `.go xyz -7580 199 12 1` (Silithus), `.go xyz 4110 -4740 101 571` (Grizzly Hills).
 
 ---
 
