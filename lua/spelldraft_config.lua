@@ -570,6 +570,41 @@ CONFIG = {
         [6770]  = 1784,  -- Sap
         [921]   = 1784,  -- Pick Pocket
     },
+
+    -- ══════════════════ Random Enchantment (RE) System ══════════════════
+    RE_ENABLE = true, --Master switch for the Random Enchantment system (spelldraft_re.lua)
+
+    --Chance (percent) that a freshly acquired item rolls a Random Enchantment,
+    --keyed by the ITEM's quality: 2 Uncommon (green), 3 Rare (blue), 4 Epic, 5 Legendary.
+    RE_ROLL_CHANCE = {
+        [2] = 10,
+        [3] = 25,
+        [4] = 50,
+        [5] = 100,
+    },
+
+    RE_BOTS_CAN_ROLL = false, --When false, playerbot loot never rolls REs (saves DB churn)
+
+    RE_SYNC_INTERVAL_MS = 2000, --How often equipped gear is re-scanned for enchant aura sync
+
+    --Nibbs the Imp's Mystic Enchant services (Wave 4 economy).
+    --Imbue = add an enchant to an un-enchanted item. Costs in COPPER, keyed by ITEM quality.
+    RE_SERVICE_IMBUE_COST = {
+        [2] = 100000,   -- Uncommon: 10g
+        [3] = 250000,   -- Rare: 25g
+        [4] = 500000,   -- Epic: 50g
+        [5] = 1000000,  -- Legendary: 100g
+    },
+    RE_SERVICE_REROLL_MULT = 0.6, --Reroll costs this fraction of the imbue price
+    RE_SERVICE_GOLDEN_TOKENS = 1, --Prestige Token cost for a Golden Imbue (guaranteed Epic+ enchant)
+
+    --Transfer service: move an enchant from one item to another.
+    --Costs in COPPER, keyed by the ENCHANT's quality (3 Rare, 4 Epic, 5 Legendary).
+    RE_TRANSFER_COST = {
+        [3] = 100000,   -- Rare enchant: 10g
+        [4] = 300000,   -- Epic enchant: 30g
+        [5] = 600000,   -- Legendary enchant: 60g
+    },
 }
 
 function CONFIG.EnsurePlayerLanguage(player)
