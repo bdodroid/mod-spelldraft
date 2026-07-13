@@ -3,7 +3,7 @@
 Prerequisites:
   - Python 3.x
   - docker / podman compose running the ac-database container
-  - Target path: addon/SpellDraft/SpellData.lua
+  - Target path: wow-client/Interface/AddOns/SpellDraft/SpellData.lua
 
 Usage:
   python3 tools/generate_spelldata.py
@@ -16,7 +16,7 @@ import sys
 
 # Define target paths
 MODULE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CURRENT_SPELLDATA_PATH = os.path.join(MODULE_ROOT, "addon/SpellDraft/SpellData.lua")
+CURRENT_SPELLDATA_PATH = os.path.join(MODULE_ROOT, "wow-client/Interface/AddOns/SpellDraft/SpellData.lua")
 
 # Connect and run MySQL query in ac-database container
 def run_query(query):
@@ -86,6 +86,27 @@ def determine_class(sl_list):
                 return "HUNTER"
                 
     return "GENERAL"
+
+# Hand-maintained kit/basic spells the Grimoire must always list. These are
+# granted alongside drafted spells (pet kits, form kits, auto attacks) but do
+# not exist in dbc_spells with a rarity, so generation alone would drop them.
+KIT_SPELLS = {
+    75: {"rarity": 0, "class": "GENERAL", "name": "Auto Shot"},
+    133: {"rarity": 0, "class": "MAGE", "name": "Fireball"},
+    136: {"rarity": 0, "class": "HUNTER", "name": "Mend Pet"},
+    168: {"rarity": 0, "class": "MAGE", "name": "Frost Armor"},
+    883: {"rarity": 0, "class": "HUNTER", "name": "Call Pet"},
+    982: {"rarity": 0, "class": "HUNTER", "name": "Revive Pet"},
+    1082: {"rarity": 0, "class": "DRUID", "name": "Claw"},
+    2641: {"rarity": 0, "class": "HUNTER", "name": "Dismiss Pet"},
+    2764: {"rarity": 0, "class": "GENERAL", "name": "Throw"},
+    5019: {"rarity": 0, "class": "GENERAL", "name": "Shoot"},
+    6603: {"rarity": 0, "class": "GENERAL", "name": "Attack"},
+    6991: {"rarity": 0, "class": "HUNTER", "name": "Feed Pet"},
+    54785: {"rarity": 0, "class": "WARLOCK", "name": "Demon Charge"},
+    59671: {"rarity": 0, "class": "WARLOCK", "name": "Challenging Howl"},
+}
+
 
 def main():
     # 1. Parse current SpellData.lua
@@ -166,6 +187,10 @@ def main():
     for sid in current_spells:
         if sid not in generated_spells:
             removed.append(sid)
+
+    for sid, info in KIT_SPELLS.items():
+        if sid not in generated_spells:
+            generated_spells[sid] = dict(info)
 
     print(f"Diff Summary:")
     print(f"  Added spells: {len(added)}")

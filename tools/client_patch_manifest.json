@@ -1,5 +1,5 @@
 {
-  "_comment": "Custom glyph definitions \u2014 single source of truth for tools/build_client_patch.py. IDs: glyph_id 1501+, item_entry 100001+ (must stay above native max ~57576), apply_spell 200001+, marker_spell 200101+. type minor|major decides the socket. handler display|proc|none drives spelldraft_glyphs.lua (display data = 'formAuraIds:displayId', proc data = recipe key in spelldraft_re.lua). effect_spell: set to a native aura spell id to let the core apply a real effect (marker_spell then unused). socket_icon = SpellIcon id drawn in the glyph socket (UI-Glyph-Rune-* range 3110-3128); spell_icon = SpellIcon id for the glyph's spells (ability art).",
+  "_comment": "Custom glyph definitions \u2014 single source of truth for tools/build_client_patch.py. IDs: glyph_id 1501+, item_entry 100001+ (must stay above native max ~57576), apply_spell 200001+, marker_spell 200101+. type minor|major decides the socket. handler display|proc|none drives spelldraft_glyphs.lua (display data = 'formAuraIds:displayId', proc data = recipe key in spelldraft_re.lua). effect_spell: set to a native aura spell id to let the core apply a real effect (marker_spell then unused). socket_icon = SpellIcon id drawn in the glyph socket (UI-Glyph-Rune-* range 3110-3128); spell_icon = SpellIcon id for the glyph's spells (ability art). creature_model_data/creature_display_info: full DBC rows (strings inline, floats as raw int bits) appended client+server. model_files: archive path -> source file/dir copied into the MPQ.",
   "glyphs": [
     {
       "glyph_id": 1501,
@@ -30,6 +30,137 @@
       "handler_data": "zealot",
       "socket_icon": 3128,
       "spell_icon": 292
+    },
+    {
+      "glyph_id": 1503,
+      "item_entry": 100003,
+      "apply_spell": 200003,
+      "marker_spell": 200103,
+      "effect_spell": null,
+      "name": "Glyph of the Fel Werebear",
+      "type": "minor",
+      "tooltip": "While in Bear Form or Dire Bear Form, you take the monstrous shape of a fel-corrupted werebear.",
+      "item_display": 52559,
+      "handler": "display",
+      "handler_data": "5487,9634:99849",
+      "socket_icon": 3110,
+      "spell_icon": 107
+    },
+    {
+      "glyph_id": 1504,
+      "item_entry": 100004,
+      "apply_spell": 200004,
+      "marker_spell": 200104,
+      "effect_spell": null,
+      "name": "Glyph of the Werebear",
+      "type": "minor",
+      "tooltip": "While in Bear Form or Dire Bear Form, you take the monstrous shape of a werebear.",
+      "item_display": 52559,
+      "handler": "display",
+      "handler_data": "5487,9634:99850",
+      "socket_icon": 3117,
+      "spell_icon": 107
+    }
+  ],
+  "creature_model_data": [
+    {
+      "string_fields": [
+        2
+      ],
+      "row": [
+        57710,
+        16,
+        "Creature\\werebear\\werebear.mdx",
+        1,
+        1056964608,
+        1,
+        7,
+        1099956224,
+        1094713344,
+        1065353216,
+        0,
+        0,
+        0,
+        3022,
+        1058828557,
+        1073871847,
+        0,
+        -1074788051,
+        -1081339051,
+        -1123323463,
+        1072254608,
+        1066057356,
+        1077432434,
+        1065353216,
+        1075838976,
+        0,
+        0,
+        0
+      ]
+    }
+  ],
+  "creature_display_info": [
+    {
+      "string_fields": [
+        6,
+        7,
+        8,
+        9
+      ],
+      "row": [
+        99849,
+        57710,
+        0,
+        0,
+        1065353216,
+        255,
+        "werebear_4253131",
+        "werebear_4253130",
+        "werebear_4253133",
+        "",
+        -1,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "string_fields": [
+        6,
+        7,
+        8,
+        9
+      ],
+      "row": [
+        99850,
+        57710,
+        0,
+        0,
+        1065353216,
+        255,
+        "werebear_tan1",
+        "werebear_tan2",
+        "werebear_tan3",
+        "",
+        -1,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    }
+  ],
+  "model_dirs": [
+    {
+      "src": "/run/media/system/Storage/Games/AscensionWow/Ascension Launcher/resources/ascension-live/Backup/CustomMPQs/patch-CW/Creature/werebear",
+      "dest": "Creature\\werebear"
+    },
+    {
+      "src": "client_assets/werebear_tan",
+      "dest": "Creature\\werebear"
     }
   ]
 }
