@@ -45,21 +45,6 @@
       "handler_data": "5487,9634:99849",
       "socket_icon": 3110,
       "spell_icon": 107
-    },
-    {
-      "glyph_id": 1504,
-      "item_entry": 100004,
-      "apply_spell": 200004,
-      "marker_spell": 200104,
-      "effect_spell": null,
-      "name": "Glyph of the Werebear",
-      "type": "minor",
-      "tooltip": "While in Bear Form or Dire Bear Form, you take the monstrous shape of a werebear.",
-      "item_display": 52559,
-      "handler": "display",
-      "handler_data": "5487,9634:99850",
-      "socket_icon": 3117,
-      "spell_icon": 107
     }
   ],
   "creature_model_data": [
@@ -125,41 +110,11 @@
         0,
         0
       ]
-    },
-    {
-      "string_fields": [
-        6,
-        7,
-        8,
-        9
-      ],
-      "row": [
-        99850,
-        57710,
-        0,
-        0,
-        1065353216,
-        255,
-        "werebear_tan1",
-        "werebear_tan2",
-        "werebear_tan3",
-        "",
-        -1,
-        0,
-        0,
-        0,
-        0,
-        0
-      ]
     }
   ],
   "model_dirs": [
     {
       "src": "/run/media/system/Storage/Games/AscensionWow/Ascension Launcher/resources/ascension-live/Backup/CustomMPQs/patch-CW/Creature/werebear",
-      "dest": "Creature\\werebear"
-    },
-    {
-      "src": "client_assets/werebear_tan",
       "dest": "Creature\\werebear"
     }
   ]
