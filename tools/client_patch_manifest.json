@@ -60,6 +60,21 @@
       "handler_data": "768:741",
       "socket_icon": 3117,
       "spell_icon": 1178
+    },
+    {
+      "glyph_id": 1505,
+      "item_entry": 100005,
+      "apply_spell": 200005,
+      "marker_spell": 200105,
+      "effect_spell": null,
+      "name": "Glyph of the Grizzlemaw",
+      "type": "minor",
+      "tooltip": "While in Bear Form or Dire Bear Form, you take the monstrous shape of a brown-furred werebear.",
+      "item_display": 52559,
+      "handler": "display",
+      "handler_data": "5487,9634:99852",
+      "socket_icon": 3110,
+      "spell_icon": 107
     }
   ],
   "creature_model_data": [
@@ -71,6 +86,41 @@
         57710,
         16,
         "Creature\\werebear\\werebear.mdx",
+        1,
+        1056964608,
+        1,
+        7,
+        1099956224,
+        1094713344,
+        1065353216,
+        0,
+        0,
+        0,
+        3022,
+        1058828557,
+        1073871847,
+        0,
+        -1074788051,
+        -1081339051,
+        -1123323463,
+        1072254608,
+        1066057356,
+        1077432434,
+        1065353216,
+        1075838976,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "string_fields": [
+        2
+      ],
+      "row": [
+        57711,
+        16,
+        "Creature\\druidbear2\\druidbear2_artifact6.mdx",
         1,
         1056964608,
         1,
@@ -151,12 +201,68 @@
         0,
         0
       ]
+    },
+    {
+      "string_fields": [
+        6,
+        7,
+        8,
+        9
+      ],
+      "row": [
+        99852,
+        57711,
+        0,
+        0,
+        1065353216,
+        255,
+        "druidbear2_artifact6_brown",
+        "",
+        "",
+        "",
+        -1,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "string_fields": [
+        6,
+        7,
+        8,
+        9
+      ],
+      "row": [
+        99853,
+        57711,
+        0,
+        0,
+        1065353216,
+        255,
+        "druidbear2_artifact6_blonde",
+        "",
+        "",
+        "",
+        -1,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
     }
   ],
   "model_dirs": [
     {
       "src": "/run/media/system/Storage/Games/AscensionWow/Ascension Launcher/resources/ascension-live/Backup/CustomMPQs/patch-CW/Creature/werebear",
       "dest": "Creature\\werebear"
+    },
+    {
+      "src": "client_assets/werebear_grizzlemaw",
+      "dest": "Creature\\druidbear2"
     }
   ],
   "verbatim_files": [
