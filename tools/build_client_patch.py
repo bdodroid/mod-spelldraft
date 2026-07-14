@@ -304,10 +304,22 @@ def main():
     items = Dbc(src / 'native_Item.dbc' if (src / 'native_Item.dbc').exists() else src / 'Item.dbc')
     spells = Dbc(src / 'native_Spell.dbc' if (src / 'native_Spell.dbc').exists() else src / 'Spell.dbc')
     props = Dbc(src / 'native_GlyphProperties.dbc' if (src / 'native_GlyphProperties.dbc').exists() else src / 'GlyphProperties.dbc')
+    shapeshifts = Dbc(src / 'native_SpellShapeshiftForm.dbc' if (src / 'native_SpellShapeshiftForm.dbc').exists() else src / 'SpellShapeshiftForm.dbc')
+
+    # Set SHAPESHIFT_FLAG_STANCE (0x1) for Druid forms in SpellShapeshiftForm.dbc
+    # to allow the client to cast any spell without auto-unshifting.
+    DRUID_FORMS = {1, 3, 4, 5, 8} # Cat, Travel, Aqua, Bear, Dire Bear
+    for i in range(shapeshifts.recs):
+        offset = i * shapeshifts.recsize
+        row = list(struct.unpack_from(f'<{shapeshifts.fields}i', shapeshifts.records, offset))
+        form_id = row[0]
+        if form_id in DRUID_FORMS:
+            row[19] |= 1  # Field 19 is flags1
+            struct.pack_into(f'<{shapeshifts.fields}i', shapeshifts.records, offset, *row)
 
     # Clear Druid form bits from StancesNot (field index 13) for all spells,
     # and add Druid forms to Stances (field index 12) if the spell has stance requirements.
-    DRUID_FORM_MASK = (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 5) | (1 << 8) | (1 << 31)
+    DRUID_FORM_MASK = (1 << 0) | (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 7) | (1 << 30)
     for i in range(spells.recs):
         offset = i * spells.recsize
         row = list(struct.unpack_from(f'<{spells.fields}i', spells.records, offset))
@@ -380,6 +392,7 @@ def main():
         'DBFilesClient\\GlyphProperties.dbc': props.dumps(),
         'DBFilesClient\\CreatureModelData.dbc': cmd.dumps(),
         'DBFilesClient\\CreatureDisplayInfo.dbc': cdi.dumps(),
+        'DBFilesClient\\SpellShapeshiftForm.dbc': shapeshifts.dumps(),
     }
     for md in manifest.get('model_dirs', []):
         src_dir = Path(md['src'])
@@ -400,6 +413,21 @@ def main():
     dest = MODULE / 'wow-client/Data/patch-P.mpq'
     write_mpq(dest, archive)
     print(f'wrote {dest} ({dest.stat().st_size} bytes)')
+
+    # Write localized version for enUS clients to support overriding repack/vanilla localized Spell.dbc
+    localized_dir = MODULE / 'wow-client/Data/enUS'
+    localized_dir.mkdir(parents=True, exist_ok=True)
+    dest_loc = localized_dir / 'patch-enUS-z.mpq'
+    write_mpq(dest_loc, archive)
+    print(f'wrote localized version to {dest_loc}')
+
+
+    # Write loose DBCs for server deployment (install.sh will copy these to the server)
+    server_dbc_dir = MODULE / 'dbc'
+    server_dbc_dir.mkdir(parents=True, exist_ok=True)
+    (server_dbc_dir / 'Spell.dbc').write_bytes(spells.dumps())
+    (server_dbc_dir / 'SpellShapeshiftForm.dbc').write_bytes(shapeshifts.dumps())
+    print(f'wrote loose server DBCs to {server_dbc_dir}')
 
     sql_dest = MODULE / 'data/sql/db-world/25_custom_glyphs_client.sql'
     emit_sql(glyphs, manifest, sql_dest)
