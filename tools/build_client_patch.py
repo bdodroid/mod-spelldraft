@@ -305,6 +305,28 @@ def main():
     spells = Dbc(src / 'native_Spell.dbc' if (src / 'native_Spell.dbc').exists() else src / 'Spell.dbc')
     props = Dbc(src / 'native_GlyphProperties.dbc' if (src / 'native_GlyphProperties.dbc').exists() else src / 'GlyphProperties.dbc')
 
+    # Clear Druid form bits from StancesNot (field index 13) for all spells,
+    # and add Druid forms to Stances (field index 12) if the spell has stance requirements.
+    DRUID_FORM_MASK = (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 5) | (1 << 8) | (1 << 31)
+    for i in range(spells.recs):
+        offset = i * spells.recsize
+        row = list(struct.unpack_from(f'<{spells.fields}i', spells.records, offset))
+        
+        # Convert signed to unsigned 32-bit integers
+        stances = row[12] & 0xFFFFFFFF
+        stances_not = row[13] & 0xFFFFFFFF
+        
+        # Modify bitmasks
+        stances_not &= ~DRUID_FORM_MASK
+        if stances != 0:
+            stances |= DRUID_FORM_MASK
+            
+        # Reinterpret back as signed 32-bit integers for the DBC 'i' field format
+        row[12] = stances if stances < 0x80000000 else stances - 0x100000000
+        row[13] = stances_not if stances_not < 0x80000000 else stances_not - 0x100000000
+        
+        struct.pack_into(f'<{spells.fields}i', spells.records, offset, *row)
+
     apply_template = spells.get_record(APPLY_TEMPLATE_SPELL)
     marker_template = spells.get_record(MARKER_TEMPLATE_SPELL)
     item_template = items.get_record(ITEM_TEMPLATE_ENTRY)
