@@ -114,7 +114,41 @@ public:
     }
 };
 
+class SpellDraftSpellScript : public AllSpellScript
+{
+public:
+    SpellDraftSpellScript() : AllSpellScript("SpellDraftSpellScript") {}
+
+    void OnSpellCheckCast(Spell* spell, bool /*strict*/, SpellCastResult& res) override
+    {
+        if (!sConfigMgr->GetOption<bool>("SpellDraft.Enable", true))
+            return;
+
+        if (!sConfigMgr->GetOption<bool>("SpellDraft.AllowSpellsInDruidForms", false))
+            return;
+
+        if (res == SPELL_FAILED_ONLY_SHAPESHIFT || res == SPELL_FAILED_NOT_SHAPESHIFT)
+        {
+            if (Unit* caster = spell->GetCaster())
+            {
+                if (caster->ToPlayer())
+                {
+                    uint32 form = caster->GetShapeshiftForm();
+                    if (form == FORM_CAT || form == FORM_TREE || form == FORM_TRAVEL ||
+                        form == FORM_AQUA || form == FORM_BEAR || form == FORM_DIREBEAR ||
+                        form == FORM_MOONKIN)
+                    {
+                        res = SPELL_CAST_OK;
+                    }
+                }
+            }
+        }
+    }
+};
+
 void AddSpellDraftScripts()
 {
     new SpellDraftPlayerScript();
+    new SpellDraftSpellScript();
 }
+
