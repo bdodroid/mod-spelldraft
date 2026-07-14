@@ -124,21 +124,45 @@ public:
         if (!sConfigMgr->GetOption<bool>("SpellDraft.Enable", true))
             return;
 
-        if (!sConfigMgr->GetOption<bool>("SpellDraft.AllowSpellsInDruidForms", false))
+        uint32 castMode = sConfigMgr->GetOption<int32>("SpellDraft.AllowSpellsInDruidForms", 0);
+        if (castMode == 0)
             return;
 
         if (res == SPELL_FAILED_ONLY_SHAPESHIFT || res == SPELL_FAILED_NOT_SHAPESHIFT)
         {
             if (Unit* caster = spell->GetCaster())
             {
-                if (caster->ToPlayer())
+                if (Player* player = caster->ToPlayer())
                 {
                     uint32 form = caster->GetShapeshiftForm();
                     if (form == FORM_CAT || form == FORM_TREE || form == FORM_TRAVEL ||
                         form == FORM_AQUA || form == FORM_BEAR || form == FORM_DIREBEAR ||
                         form == FORM_MOONKIN)
                     {
-                        res = SPELL_CAST_OK;
+                        // Mode 1: Allow casting all spells in Druid forms
+                        if (castMode == 1)
+                        {
+                            res = SPELL_CAST_OK;
+                            return;
+                        }
+
+                        // Mode 2: Allow casting based on active Mystic Enchants / Auras
+                        if (castMode == 2)
+                        {
+                            // Custom Enchant support: "Shadow Fel Werebear"
+                            // Enchant marker aura 990001 allows casting Warlock spells in form.
+                            if (player->HasAura(990001))
+                            {
+                                SpellInfo const* spellInfo = spell->GetSpellInfo();
+                                if (spellInfo && spellInfo->SpellFamilyName == SPELLFAMILY_WARLOCK)
+                                {
+                                    res = SPELL_CAST_OK;
+                                    return;
+                                }
+                            }
+                            
+                            // You can add additional enchant-specific casting rules here!
+                        }
                     }
                 }
             }
