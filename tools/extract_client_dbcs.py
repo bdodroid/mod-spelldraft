@@ -11,7 +11,12 @@ uses: point build_client_patch.py --dbc-src at this tool's output.
 
 Usage:
     python3 tools/extract_client_dbcs.py "/path/to/wow 3.3.5a client" out_dir
+    python3 tools/extract_client_dbcs.py --native client_dir out_dir
     python3 tools/extract_client_dbcs.py client_dir out_dir Spell.dbc Item.dbc
+
+--native restricts the scan to official Blizzard archives (base + patch/-2/-3
+and their locale counterparts), skipping every third-party lettered patch —
+use it to recover pristine 3.3.5 DBCs even from a modified/repack install.
 
 Only zlib/bzip2 sector compression is implemented (covers Blizzard + common
 tooling output for DBC files).
@@ -163,7 +168,18 @@ DEFAULT_DBCS = ['Spell.dbc', 'SpellShapeshiftForm.dbc', 'Item.dbc', 'GlyphProper
 OWN_ARCHIVES = {'patch-p.mpq', 'patch-enus-z.mpq'}
 
 
-def load_ordered_archives(client_dir):
+def _is_official(path):
+    """Blizzard shipped 3.3.5 with only patch/-2/-3 (+ locale counterparts);
+    every patch-4..9/a..z archive is third-party."""
+    name = os.path.basename(path).lower()[:-4]
+    if not name.startswith('patch'):
+        return True  # base/locale/speech archives
+    slot = name.split('-')[-1]
+    return slot in ('patch', 'enus', 'engb', 'dede', 'frfr', 'eses', 'ruru',
+                    'zhcn', 'zhtw', 'kokr', 'esmx', '2', '3') or name == 'patch'
+
+
+def load_ordered_archives(client_dir, native_only=False):
     data_dir = None
     for entry in os.listdir(client_dir):
         if entry.lower() == 'data':
@@ -173,6 +189,8 @@ def load_ordered_archives(client_dir):
     paths = glob.glob(os.path.join(data_dir, '*.[mM][pP][qQ]')) + \
         glob.glob(os.path.join(data_dir, '*', '*.[mM][pP][qQ]'))
     paths = [p for p in paths if os.path.basename(p).lower() not in OWN_ARCHIVES]
+    if native_only:
+        paths = [p for p in paths if _is_official(p)]
 
     def priority(path):
         name = os.path.basename(path).lower()
@@ -186,14 +204,18 @@ def load_ordered_archives(client_dir):
 
 
 def main():
-    if len(sys.argv) < 3:
+    args = sys.argv[1:]
+    native_only = '--native' in args
+    if native_only:
+        args.remove('--native')
+    if len(args) < 2:
         raise SystemExit(__doc__)
-    client_dir, out_dir = sys.argv[1], sys.argv[2]
-    wanted = sys.argv[3:] or DEFAULT_DBCS
+    client_dir, out_dir = args[0], args[1]
+    wanted = args[2:] or DEFAULT_DBCS
     os.makedirs(out_dir, exist_ok=True)
 
     best = {}
-    for path in load_ordered_archives(client_dir):
+    for path in load_ordered_archives(client_dir, native_only):
         try:
             archive = Mpq(path)
         except Exception as exc:

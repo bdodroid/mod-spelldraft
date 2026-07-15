@@ -299,7 +299,12 @@ def emit_sql(glyphs, manifest, dest):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--dbc-src', required=True,
-                    help='dir with native Item.dbc, Spell.dbc, GlyphProperties.dbc')
+                    help='dir with the client-effective Item.dbc, Spell.dbc, ... '
+                         '(use tools/extract_client_dbcs.py to produce it)')
+    ap.add_argument('--hd-locale', metavar='LOCALE',
+                    help='ALSO write wow-client/Data/<LOCALE>/patch-<LOCALE>-z.mpq '
+                         'for HD repack clients whose own lettered patches outrank '
+                         'patch-P (e.g. --hd-locale enUS). Deploy ONE archive only.')
     args = ap.parse_args()
     src = Path(args.dbc_src)
 
@@ -414,17 +419,21 @@ def main():
     write_mpq(dest, archive)
     print(f'wrote {dest} ({dest.stat().st_size} bytes)')
 
-    # Write localized version for enUS clients to support overriding repack/vanilla localized Spell.dbc
-    localized_dir = MODULE / 'wow-client/Data/enUS'
-    localized_dir.mkdir(parents=True, exist_ok=True)
-    dest_loc = localized_dir / 'patch-enUS-z.mpq'
-    write_mpq(dest_loc, archive)
-    print(f'wrote localized version to {dest_loc}')
-    print()
-    print('WARNING: deploy EXACTLY ONE of patch-P.mpq / patch-enUS-z.mpq per client,')
-    print('never both. Mounting the same archive twice corrupts the 3.3.5 client heap')
-    print('and crashes with ERROR #132 on exit. Use patch-enUS-z.mpq for enUS clients')
-    print('(it outranks repack patches like patch-enUS-s); patch-P.mpq otherwise.')
+    # Optional locale override patch for HD repack clients: repacks ship their
+    # own lettered patches (e.g. patch-enUS-s.mpq) that outrank patch-P, so a
+    # locale patch with a higher letter is needed to win the override chain.
+    if args.hd_locale:
+        loc = args.hd_locale
+        localized_dir = MODULE / 'wow-client/Data' / loc
+        localized_dir.mkdir(parents=True, exist_ok=True)
+        dest_loc = localized_dir / f'patch-{loc}-z.mpq'
+        write_mpq(dest_loc, archive)
+        print(f'wrote HD locale override to {dest_loc}')
+        print()
+        print(f'WARNING: deploy EXACTLY ONE archive per client — patch-{loc}-z.mpq for')
+        print('the HD client it was built against, patch-P.mpq for native clients.')
+        print('Mounting the same archive twice corrupts the 3.3.5 client heap and')
+        print('crashes with ERROR #132 on exit.')
 
 
     # Write loose DBCs for server deployment (install.sh will copy these to the server)

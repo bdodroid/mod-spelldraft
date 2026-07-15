@@ -23,10 +23,10 @@ Designed primarily for players who want a fun, rogue-like draft experience on th
 
 If you are a player connecting to a server running SpellDraft, you do **not** need to install or build the server module. You only need the client files:
 1. Go to the **Releases** section of this repository and download the latest `wow-client.zip`.
-2. Extract the zip file, copy the `Interface/` folder into your World of Warcraft game directory, then install **exactly ONE** of the two patch archives:
-   * **enUS clients (including HD repacks)**: copy `Data/enUS/patch-enUS-z.mpq` into your client's `Data/enUS/` folder. Do **not** also copy `patch-P.mpq`.
-   * **Other locales**: copy `Data/enUS/patch-enUS-z.mpq` into your locale folder renamed to match (e.g. `Data/enGB/patch-enGB-z.mpq`), **or** use `Data/patch-P.mpq` alone.
-   * ⚠️ **Never install both archives.** They contain identical data, and the 3.3.5 client silently corrupts its own memory when the same archive is mounted twice — crashing with `ERROR #132` every time the game exits.
+2. Extract the zip file, copy the `Interface/` folder into your World of Warcraft game directory, and copy `Data/patch-P.mpq` into your client's `Data/` folder.
+   * The shipped `patch-P.mpq` is built for the **native (unmodified) WotLK 3.3.5a client**.
+   * **HD / custom repack clients**: do **not** use the shipped archive — it would override your repack's databases with vanilla data (broken/green models, altered tooltips). A patch must be compiled against your specific repack; see [Building Client Patches for HD Repacks](#building-client-patches-for-hd-repacks) (usually your server owner provides this build).
+   * ⚠️ Install exactly **one** SpellDraft patch archive. Mounting the same archive twice (e.g. as both `patch-P.mpq` and a locale patch) silently corrupts the 3.3.5 client's memory and crashes with `ERROR #132` on every exit.
 3. **Fully close and relaunch the game** after copying — custom `.mpq` patches only load at client startup, not on `/reload`.
 
 ---
@@ -150,7 +150,7 @@ We provide an automated script that performs all server-side staging, configurat
    cd modules/mod-spelldraft
    ./install.sh
    ```
- 3. **Install Client files:** Copy `wow-client/Interface/AddOns/SpellDraft` into your client's `Interface/AddOns/`, and install **exactly ONE** patch archive: `wow-client/Data/enUS/patch-enUS-z.mpq` into your client's `Data/enUS/` folder (preferred for enUS clients — it outranks repack patches), **or** `wow-client/Data/patch-P.mpq` into `Data/` for non-enUS clients. **Never both** — mounting the same archive twice corrupts the client heap and crashes with `ERROR #132` on every exit.
+ 3. **Install Client files:** Copy `wow-client/Interface/AddOns/SpellDraft` into your client's `Interface/AddOns/`, and copy `wow-client/Data/patch-P.mpq` into your client's `Data/` folder (native 3.3.5a clients; HD repack users must compile their own patch — see the HD section). Install exactly **one** SpellDraft archive per client — mounting the same archive twice corrupts the client heap and crashes with `ERROR #132` on every exit.
  4. Restart your server!
 
 ---
@@ -313,21 +313,25 @@ For testing and verification in-game, you can use the following `.additem` comma
 
 ## Building Client Patches for HD Repacks
 
-If you or your players are connecting using a custom high-definition (HD) client repack (which replaces standard creature meshes/textures with retail versions), the default compiled `patch-P.mpq` will override the client's HD creature database with vanilla WotLK settings, causing missing-texture (bright neon-green) wrappers on custom creature models.
+The repository ships `wow-client/Data/patch-P.mpq` built for the **native 3.3.5a client only**. HD / custom repack clients need their own compile, for two reasons:
 
-To compile a custom patch that preserves all repack customizations, do not use the vanilla databases — repacks ship modified DBCs well beyond the creature tables (e.g. a 67 MB custom `Spell.dbc` in `patch-enUS-s.mpq`), and overriding those with vanilla-based files breaks the repack (and can crash the client). Build from the DBCs the client *actually resolves* through its archive load order:
+1. **Repacks ship modified DBCs.** They replace creature meshes/textures and often far more (one tested repack carries a 67 MB custom `Spell.dbc` in `patch-enUS-s.mpq`). Overriding those tables with native-based files breaks the repack: neon-green/invisible creature models, altered tooltips, and dangling database references that can destabilize the client. The patch must be compiled from the DBCs *your* repack actually uses — every repack is different, so no prebuilt HD archive is shipped.
+2. **Repacks ship high-letter patches.** MPQ archives load in slot order (`patch-2..9`, then `patch-a..z`, locale patches outranking base ones at the same letter). A repack's own `patch-enUS-s.mpq` outranks `patch-P.mpq`, silently disabling SpellDraft's data — so HD builds are emitted as a **locale `-z` patch**, which outranks everything.
 
-1. **Extract the client's effective DBCs** with the bundled extractor (it walks every archive in load order — no external tools needed):
+The two bundled tools handle this (no external MPQ software needed):
+
+1. **Extract the client's effective DBCs** — the extractor walks the repack's full archive chain in load order and pulls out the version of each table the client actually resolves:
    ```bash
-   python3 tools/extract_client_dbcs.py "/path/to/wow 3.3.5a client" /path/to/dbc_src
+   python3 tools/extract_client_dbcs.py "/path/to/your hd client" /path/to/dbc_src
    ```
-2. **Compile the Custom Patch** against that output:
+2. **Compile with an HD locale override patch:**
    ```bash
-   python3 tools/build_client_patch.py --dbc-src /path/to/dbc_src
+   python3 tools/build_client_patch.py --dbc-src /path/to/dbc_src --hd-locale enUS
    ```
-3. **Deploy:** Copy `wow-client/Data/enUS/patch-enUS-z.mpq` into the client's `Data/enUS/` folder. Do **not** also deploy `patch-P.mpq` — exactly one archive per client (see the warning in the connection guide).
+   (Match `--hd-locale` to the client's locale folder, e.g. `enGB`, `deDE`.)
+3. **Deploy** the resulting `wow-client/Data/enUS/patch-enUS-z.mpq` into the client's `Data/enUS/` folder. Do **not** also deploy `patch-P.mpq` — exactly one SpellDraft archive per client, ever (see the ERROR #132 warning in the connection guide).
 
-Since all custom spells, items, glyphs, and models are defined in the single source of truth (`tools/client_patch_manifest.json`), compiling with your client's own database files as a base will fully preserve all repack customizations while seamlessly adding all new module features.
+Since all custom spells, items, glyphs, and models are defined in the single source of truth (`tools/client_patch_manifest.json`), compiling with your client's own database files as a base fully preserves all repack customizations while seamlessly adding all module features.
 
 ---
 
