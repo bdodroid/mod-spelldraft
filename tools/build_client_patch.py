@@ -4,7 +4,7 @@
 Custom glyphs need three client-side DBC additions (icons, socket gating, panel
 tooltips): Item.dbc, Spell.dbc and GlyphProperties.dbc. The client replaces
 whole files from patch archives, so this tool appends our rows to the NATIVE
-files and packs the results into a fresh MPQ (v1, single-unit uncompressed —
+files and packs the results into a fresh MPQ (v1, plain uncompressed storage —
 readable by the stock 3.3.5 client and by mpyq for verification).
 
 New records are cloned from native template records (no field-layout
@@ -39,7 +39,7 @@ SPELL_NAME_FIELD = 136
 SPELL_DESC_FIELD = 170
 
 # ============================================================================
-# MPQ v1 writer (single-unit, uncompressed)
+# MPQ v1 writer (plain multi-sector, uncompressed)
 # ============================================================================
 
 def _build_crypt_table():
@@ -96,8 +96,12 @@ def write_mpq(dest, files):
 
     for block_index, (name, data) in enumerate(files.items()):
         blobs.append(data)
-        # 0x80000000 EXISTS | 0x01000000 SINGLE_UNIT (stored raw)
-        block_entries.append((offset, len(data), len(data), 0x81000000))
+        # 0x80000000 EXISTS, stored raw as plain multi-sector (uncompressed
+        # files carry no sector-offset table, so the payload is byte-identical).
+        # Do NOT add 0x01000000 SINGLE_UNIT: the 3.3.5 client's async streaming
+        # reader (used for .m2/.anim/.blp loaded during play) mishandles
+        # single-unit files and corrupts the heap -> ERROR #132 on exit.
+        block_entries.append((offset, len(data), len(data), 0x80000000))
         idx = _hash_string(name, 0) & (hash_size - 1)
         while hash_entries[idx][3] != 0xFFFFFFFF:
             idx = (idx + 1) & (hash_size - 1)
@@ -317,27 +321,23 @@ def main():
             row[19] |= 1  # Field 19 is flags1
             struct.pack_into(f'<{shapeshifts.fields}i', shapeshifts.records, offset, *row)
 
-    # Clear Druid form bits from StancesNot (field index 13) for all spells,
-    # and add Druid forms to Stances (field index 12) if the spell has stance requirements.
+    # Clear Druid form bits from StancesNot so no spell is blocked while
+    # shapeshifted. 3.3.5 Spell.dbc stores Stances/StancesNot as 64-bit pairs:
+    # Stances = fields 12-13, StancesNot = fields 14-15 (13/15 are always-zero
+    # high words). Only field 14 is touched. Never OR Druid bits into Stances
+    # (field 12): the client renders every Stances bit into the fixed-size
+    # "Requires <form>, ..." tooltip line, and inflating ~1000 spells' masks
+    # overflows that buffer -> silent heap corruption -> ERROR #132 on exit.
+    # Casting-while-shifted is granted by SHAPESHIFT_FLAG_STANCE above instead.
     DRUID_FORM_MASK = (1 << 0) | (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 7) | (1 << 30)
     for i in range(spells.recs):
         offset = i * spells.recsize
         row = list(struct.unpack_from(f'<{spells.fields}i', spells.records, offset))
-        
-        # Convert signed to unsigned 32-bit integers
-        stances = row[12] & 0xFFFFFFFF
-        stances_not = row[13] & 0xFFFFFFFF
-        
-        # Modify bitmasks
-        stances_not &= ~DRUID_FORM_MASK
-        if stances != 0:
-            stances |= DRUID_FORM_MASK
-            
-        # Reinterpret back as signed 32-bit integers for the DBC 'i' field format
-        row[12] = stances if stances < 0x80000000 else stances - 0x100000000
-        row[13] = stances_not if stances_not < 0x80000000 else stances_not - 0x100000000
-        
-        struct.pack_into(f'<{spells.fields}i', spells.records, offset, *row)
+        stances_not = row[14] & 0xFFFFFFFF
+        if stances_not & DRUID_FORM_MASK:
+            stances_not &= ~DRUID_FORM_MASK
+            row[14] = stances_not if stances_not < 0x80000000 else stances_not - 0x100000000
+            struct.pack_into(f'<{spells.fields}i', spells.records, offset, *row)
 
     apply_template = spells.get_record(APPLY_TEMPLATE_SPELL)
     marker_template = spells.get_record(MARKER_TEMPLATE_SPELL)
@@ -420,6 +420,11 @@ def main():
     dest_loc = localized_dir / 'patch-enUS-z.mpq'
     write_mpq(dest_loc, archive)
     print(f'wrote localized version to {dest_loc}')
+    print()
+    print('WARNING: deploy EXACTLY ONE of patch-P.mpq / patch-enUS-z.mpq per client,')
+    print('never both. Mounting the same archive twice corrupts the 3.3.5 client heap')
+    print('and crashes with ERROR #132 on exit. Use patch-enUS-z.mpq for enUS clients')
+    print('(it outranks repack patches like patch-enUS-s); patch-P.mpq otherwise.')
 
 
     # Write loose DBCs for server deployment (install.sh will copy these to the server)
