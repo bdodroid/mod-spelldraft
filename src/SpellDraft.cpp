@@ -1,8 +1,12 @@
 #include "Player.h"
 #include "Config.h"
+#include "DatabaseEnv.h"
 #include "ScriptMgr.h"
 #include "ScriptDefines/PlayerScript.h"
+#include "ScriptDefines/WorldScript.h"
 #include "Spell.h"
+
+#include <vector>
 
 class SpellDraftPlayerScript : public PlayerScript
 {
@@ -154,10 +158,11 @@ static bool IsDruidShapeshiftSpell(SpellInfo const* spellInfo)
 }
 
 // Mode 2 (Mystic Enchants): while the marker aura is active, spells of the
-// given family may be cast in the druid forms covered by formMask (bit is
-// form - 1, the Spell.dbc Stances convention). Add new enchant rules here —
-// each needs a marker aura in 26_druid_form_casting_enchant.sql (spell_dbc)
-// and a custom_random_enchantments row applying it.
+// given family (0 = any class) may be cast in the druid forms covered by
+// formMask (bit is form - 1, the Spell.dbc Stances convention). Rules live in
+// the world DB table `custom_form_casting_rules`, seeded together with their
+// marker auras and enchant rows by 26_druid_form_casting_enchant.sql — new
+// enchants need no C++ change.
 struct EnchantCastRule
 {
     uint32 markerAura;
@@ -165,10 +170,29 @@ struct EnchantCastRule
     uint32 formMask;
 };
 
-static EnchantCastRule const ENCHANT_CAST_RULES[] =
+static std::vector<EnchantCastRule> _enchantCastRules;
+
+class SpellDraftWorldScript : public WorldScript
 {
-    // Shadow Fel Werebear: Warlock spells, Bear / Dire Bear forms only.
-    { 990001, SPELLFAMILY_WARLOCK, (1u << (FORM_BEAR - 1)) | (1u << (FORM_DIREBEAR - 1)) },
+public:
+    SpellDraftWorldScript() : WorldScript("SpellDraftWorldScript", { WORLDHOOK_ON_STARTUP }) {}
+
+    void OnStartup() override
+    {
+        _enchantCastRules.clear();
+        QueryResult result = WorldDatabase.Query(
+            "SELECT marker_aura, spell_family, form_mask FROM custom_form_casting_rules");
+        if (result)
+        {
+            do
+            {
+                Field* fields = result->Fetch();
+                _enchantCastRules.push_back(
+                    { fields[0].Get<uint32>(), fields[1].Get<uint32>(), fields[2].Get<uint32>() });
+            } while (result->NextRow());
+        }
+        LOG_INFO("module", "[SpellDraft] Loaded {} form-casting enchant rules.", _enchantCastRules.size());
+    }
 };
 
 // Druid-family utility that Tree of Life natively permits (its StancesNot in
@@ -237,10 +261,10 @@ public:
             {
                 if (SpellInfo const* spellInfo = spell->GetSpellInfo())
                 {
-                    for (auto const& rule : ENCHANT_CAST_RULES)
+                    for (auto const& rule : _enchantCastRules)
                     {
                         if ((rule.formMask & (uint32(1) << (form - 1)))
-                            && spellInfo->SpellFamilyName == rule.spellFamily
+                            && (rule.spellFamily == 0 || spellInfo->SpellFamilyName == rule.spellFamily)
                             && player->HasAura(rule.markerAura))
                         {
                             res = SPELL_CAST_OK;
@@ -319,5 +343,6 @@ void AddSpellDraftScripts()
 {
     new SpellDraftPlayerScript();
     new SpellDraftSpellScript();
+    new SpellDraftWorldScript();
 }
 

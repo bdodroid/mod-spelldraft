@@ -82,7 +82,7 @@ Weapons and armor of Uncommon quality or better that you **loot, craft, or win**
 
 Visit **Nibbs the Imp** and choose *Open Mystic Enchant services* for the enchanting window:
 *   **Reroll / Imbue** — drag an item into the slot and pay gold to reroll its enchant, or to add one to an un-enchanted item.
-*   **Golden Imbue** — spend a **Prestige Token** for a guaranteed **Epic-or-better** enchant.
+*   **Reroll / Imbue (Epic+)** — spend a **Prestige Token** for a guaranteed **Epic-or-better** enchant.
 *   **Transfer** — pay gold (scaling with the enchant's rarity) to move an enchant from one item to another. Overwriting the destination's enchant asks for confirmation; the source keeps a spent marker.
 
 ## Cosmetic & Custom Glyphs
@@ -280,7 +280,10 @@ The C++ side of the module reads `etc/modules/mod_spelldraft.conf` (created from
 
 * **`0` — Disabled**: native WoW rules; casting a non-form spell fails or unshifts as usual.
 * **`1` — All**: any spell can be cast in any Druid form. The server skips the `SPELL_FAILED_ONLY_SHAPESHIFT` / `SPELL_FAILED_NOT_SHAPESHIFT` checks entirely for players.
-* **`2` — ME (Mystic Enchants)**: form casting is only unlocked by specific Mystic Enchants, each limited to specific forms. Currently the *Shadow Fel Werebear* enchant (marker aura `990001`, RE `900019`) allows **Warlock-family** spells while in **Bear/Dire Bear Form** only; other forms keep native rules. Add enchant→family→form rules in the `ENCHANT_CAST_RULES` table in `src/SpellDraft.cpp` (marker aura + RE row live in `data/sql/db-world/26_druid_form_casting_enchant.sql`).
+* **`2` — ME (Mystic Enchants)**: form casting is only unlocked by Mystic Enchants, each covering one class family on one form group. A full set ships in `data/sql/db-world/26_druid_form_casting_enchant.sql`:
+  * **Epic tier** (40 enchants): one class on one form — `<Class-flavor> Bear / Prowler / Moonkin / Treant` (e.g. *Feltouched Bear* = Warlock in Bear/Dire Bear, *Arcanebound Prowler* = Mage in Cat).
+  * **Legendary tier** (4 enchants, rarest): **all** classes on one form — *Heart of Ursoc* (Bear), *Grace of Ashamane* (Cat), *Gift of Elune* (Moonkin), *Blessing of Nordrassil* (Tree of Life).
+  * Rules are data-driven: the C++ reads `custom_form_casting_rules` (`marker_aura`, `spell_family` — 0 = any class, `form_mask` — bit = form id − 1) at startup, so new enchants need only SQL (marker aura in `spell_dbc` + `custom_random_enchantments` row + rule row) and a server restart.
 
 > **Client patch required for modes 1 and 2:** this setting only lifts *server-side* validation. Without the SpellDraft client patch (`patch-P.mpq`, or the compiled `-z` patch on HD clients), the client itself still auto-unshifts or greys out spell buttons while in forms. The patch sets the stance flag on the Druid forms in `SpellShapeshiftForm.dbc` and clears Druid form exclusions from `StancesNot` in `Spell.dbc`.
 
@@ -330,7 +333,7 @@ For testing and verification in-game, you can use the following `.additem` comma
 
 ## Building Client Patches for HD Repacks
 
-The repository ships `wow-client/Data/patch-P.mpq` built for the **native 3.3.5a client only**. HD / custom repack clients need their own compile, for two reasons:
+The repository ships `wow-client/Data/patch-P.mpq` built for the **native 3.3.5a client only**. A client counts as "native" only if its `Data/` folder contains nothing beyond Blizzard's archives (`common`, `expansion`, `lichking`, `patch`, `patch-2`, `patch-3` + locale equivalents) — any extra lettered `patch-*.mpq` (HD model packs, repack content) means you need a custom compile, even if the install is labelled a clean client. HD / custom repack clients need their own compile, for two reasons:
 
 1. **Repacks ship modified DBCs.** They replace creature meshes/textures and often far more (one tested repack carries a 67 MB custom `Spell.dbc` in `patch-enUS-s.mpq`). Overriding those tables with native-based files breaks the repack: neon-green/invisible creature models, altered tooltips, and dangling database references that can destabilize the client. The patch must be compiled from the DBCs *your* repack actually uses — every repack is different, so no prebuilt HD archive is shipped.
 2. **Repacks ship high-letter patches.** MPQ archives load in slot order (`patch-2..9`, then `patch-a..z`, locale patches outranking base ones at the same letter). A repack's own `patch-enUS-s.mpq` outranks `patch-P.mpq`, silently disabling SpellDraft's data — so HD builds are emitted as a **locale `-z` patch**, which outranks everything.

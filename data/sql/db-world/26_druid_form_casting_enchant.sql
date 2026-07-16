@@ -1,20 +1,163 @@
--- Mystic Enchant powering SpellDraft.AllowSpellsInDruidForms mode 2 (ME).
--- The enchant applies hidden marker aura 990001 while equipped; the C++ hook
--- (src/SpellDraft.cpp, castMode == 2) allows Warlock-family casts in Druid
--- forms while that aura is present.
+-- Mystic Enchants powering SpellDraft.AllowSpellsInDruidForms mode 2 (ME).
+-- Each enchant applies a hidden marker aura while equipped; the C++ hook
+-- (src/SpellDraft.cpp) reads `custom_form_casting_rules` at startup and allows
+-- casts of `spell_family` (0 = any class) in the forms of `form_mask`
+-- (bit = form id - 1) while `marker_aura` is present.
+--
+-- Epic tier (quality 4): one class unlocked on one form.
+-- Legendary tier (quality 5, rarest): all classes unlocked on one form.
 
--- Hidden passive dummy marker aura (same column pattern as the glyph marker
--- auras in 25_custom_glyphs_client.sql: passive + do-not-display, infinite
--- duration, self-target dummy).
-DELETE FROM `spell_dbc` WHERE `ID` = 990001;
+CREATE TABLE IF NOT EXISTS `custom_form_casting_rules` (
+    `marker_aura` INT UNSIGNED NOT NULL,
+    `spell_family` INT UNSIGNED NOT NULL DEFAULT 0,
+    `form_mask` INT UNSIGNED NOT NULL,
+    PRIMARY KEY (`marker_aura`, `spell_family`, `form_mask`)
+) ENGINE=InnoDB;
+
+-- Hidden passive dummy marker auras (passive + do-not-display, infinite
+-- duration, self-target dummy — same pattern as the glyph marker auras).
+DELETE FROM `spell_dbc` WHERE `ID` BETWEEN 990001 AND 990044;
 INSERT INTO `spell_dbc`
     (`ID`, `Attributes`, `AttributesEx`, `Targets`, `InterruptFlags`, `ProcChance`,
      `CastingTimeIndex`, `DurationIndex`, `RangeIndex`, `EquippedItemClass`,
      `Effect_1`, `ImplicitTargetA_1`, `EffectAura_1`, `EffectMiscValue_1`,
      `SpellVisualID_1`, `SpellIconID`, `SchoolMask`, `Name_Lang_enUS`) VALUES
-    (990001, 192, 0, 0, 0, 101, 1, 21, 1, -1, 6, 1, 4, 0, 0, 107, 1, 'Shadow Fel Werebear');
+    (990001, 192, 0, 0, 0, 101, 1, 21, 1, -1, 6, 1, 4, 0, 0, 107, 1, 'Feltouched Bear'),
+    (990002, 192, 0, 0, 0, 101, 1, 21, 1, -1, 6, 1, 4, 0, 0, 107, 1, 'Battleborn Bear'),
+    (990003, 192, 0, 0, 0, 101, 1, 21, 1, -1, 6, 1, 4, 0, 0, 107, 1, 'Lightsworn Bear'),
+    (990004, 192, 0, 0, 0, 101, 1, 21, 1, -1, 6, 1, 4, 0, 0, 107, 1, 'Wildstalker Bear'),
+    (990005, 192, 0, 0, 0, 101, 1, 21, 1, -1, 6, 1, 4, 0, 0, 107, 1, 'Nightblade Bear'),
+    (990006, 192, 0, 0, 0, 101, 1, 21, 1, -1, 6, 1, 4, 0, 0, 107, 1, 'Sanctified Bear'),
+    (990007, 192, 0, 0, 0, 101, 1, 21, 1, -1, 6, 1, 4, 0, 0, 107, 1, 'Stormtouched Bear'),
+    (990008, 192, 0, 0, 0, 101, 1, 21, 1, -1, 6, 1, 4, 0, 0, 107, 1, 'Arcanebound Bear'),
+    (990009, 192, 0, 0, 0, 101, 1, 21, 1, -1, 6, 1, 4, 0, 0, 107, 1, 'Dreambound Bear'),
+    (990010, 192, 0, 0, 0, 101, 1, 21, 1, -1, 6, 1, 4, 0, 0, 107, 1, 'Runebound Bear'),
+    (990011, 192, 0, 0, 0, 101, 1, 21, 1, -1, 6, 1, 4, 0, 0, 107, 1, 'Battleborn Prowler'),
+    (990012, 192, 0, 0, 0, 101, 1, 21, 1, -1, 6, 1, 4, 0, 0, 107, 1, 'Lightsworn Prowler'),
+    (990013, 192, 0, 0, 0, 101, 1, 21, 1, -1, 6, 1, 4, 0, 0, 107, 1, 'Wildstalker Prowler'),
+    (990014, 192, 0, 0, 0, 101, 1, 21, 1, -1, 6, 1, 4, 0, 0, 107, 1, 'Nightblade Prowler'),
+    (990015, 192, 0, 0, 0, 101, 1, 21, 1, -1, 6, 1, 4, 0, 0, 107, 1, 'Sanctified Prowler'),
+    (990016, 192, 0, 0, 0, 101, 1, 21, 1, -1, 6, 1, 4, 0, 0, 107, 1, 'Stormtouched Prowler'),
+    (990017, 192, 0, 0, 0, 101, 1, 21, 1, -1, 6, 1, 4, 0, 0, 107, 1, 'Arcanebound Prowler'),
+    (990018, 192, 0, 0, 0, 101, 1, 21, 1, -1, 6, 1, 4, 0, 0, 107, 1, 'Feltouched Prowler'),
+    (990019, 192, 0, 0, 0, 101, 1, 21, 1, -1, 6, 1, 4, 0, 0, 107, 1, 'Dreambound Prowler'),
+    (990020, 192, 0, 0, 0, 101, 1, 21, 1, -1, 6, 1, 4, 0, 0, 107, 1, 'Runebound Prowler'),
+    (990021, 192, 0, 0, 0, 101, 1, 21, 1, -1, 6, 1, 4, 0, 0, 107, 1, 'Battleborn Moonkin'),
+    (990022, 192, 0, 0, 0, 101, 1, 21, 1, -1, 6, 1, 4, 0, 0, 107, 1, 'Lightsworn Moonkin'),
+    (990023, 192, 0, 0, 0, 101, 1, 21, 1, -1, 6, 1, 4, 0, 0, 107, 1, 'Wildstalker Moonkin'),
+    (990024, 192, 0, 0, 0, 101, 1, 21, 1, -1, 6, 1, 4, 0, 0, 107, 1, 'Nightblade Moonkin'),
+    (990025, 192, 0, 0, 0, 101, 1, 21, 1, -1, 6, 1, 4, 0, 0, 107, 1, 'Sanctified Moonkin'),
+    (990026, 192, 0, 0, 0, 101, 1, 21, 1, -1, 6, 1, 4, 0, 0, 107, 1, 'Stormtouched Moonkin'),
+    (990027, 192, 0, 0, 0, 101, 1, 21, 1, -1, 6, 1, 4, 0, 0, 107, 1, 'Arcanebound Moonkin'),
+    (990028, 192, 0, 0, 0, 101, 1, 21, 1, -1, 6, 1, 4, 0, 0, 107, 1, 'Feltouched Moonkin'),
+    (990029, 192, 0, 0, 0, 101, 1, 21, 1, -1, 6, 1, 4, 0, 0, 107, 1, 'Dreambound Moonkin'),
+    (990030, 192, 0, 0, 0, 101, 1, 21, 1, -1, 6, 1, 4, 0, 0, 107, 1, 'Runebound Moonkin'),
+    (990031, 192, 0, 0, 0, 101, 1, 21, 1, -1, 6, 1, 4, 0, 0, 107, 1, 'Battleborn Treant'),
+    (990032, 192, 0, 0, 0, 101, 1, 21, 1, -1, 6, 1, 4, 0, 0, 107, 1, 'Lightsworn Treant'),
+    (990033, 192, 0, 0, 0, 101, 1, 21, 1, -1, 6, 1, 4, 0, 0, 107, 1, 'Wildstalker Treant'),
+    (990034, 192, 0, 0, 0, 101, 1, 21, 1, -1, 6, 1, 4, 0, 0, 107, 1, 'Nightblade Treant'),
+    (990035, 192, 0, 0, 0, 101, 1, 21, 1, -1, 6, 1, 4, 0, 0, 107, 1, 'Sanctified Treant'),
+    (990036, 192, 0, 0, 0, 101, 1, 21, 1, -1, 6, 1, 4, 0, 0, 107, 1, 'Stormtouched Treant'),
+    (990037, 192, 0, 0, 0, 101, 1, 21, 1, -1, 6, 1, 4, 0, 0, 107, 1, 'Arcanebound Treant'),
+    (990038, 192, 0, 0, 0, 101, 1, 21, 1, -1, 6, 1, 4, 0, 0, 107, 1, 'Feltouched Treant'),
+    (990039, 192, 0, 0, 0, 101, 1, 21, 1, -1, 6, 1, 4, 0, 0, 107, 1, 'Dreambound Treant'),
+    (990040, 192, 0, 0, 0, 101, 1, 21, 1, -1, 6, 1, 4, 0, 0, 107, 1, 'Runebound Treant'),
+    (990041, 192, 0, 0, 0, 101, 1, 21, 1, -1, 6, 1, 4, 0, 0, 107, 1, 'Heart of Ursoc'),
+    (990042, 192, 0, 0, 0, 101, 1, 21, 1, -1, 6, 1, 4, 0, 0, 107, 1, 'Grace of Ashamane'),
+    (990043, 192, 0, 0, 0, 101, 1, 21, 1, -1, 6, 1, 4, 0, 0, 107, 1, 'Gift of Elune'),
+    (990044, 192, 0, 0, 0, 101, 1, 21, 1, -1, 6, 1, 4, 0, 0, 107, 1, 'Blessing of Nordrassil');
 
-DELETE FROM `custom_random_enchantments` WHERE `id` = 900019;
+DELETE FROM `custom_random_enchantments` WHERE `id` BETWEEN 900019 AND 900062;
 INSERT INTO `custom_random_enchantments`
     (`id`, `name`, `tooltip`, `quality`, `weight`, `min_level`, `slot_mask`, `handler`, `handler_data`) VALUES
-    (900019, 'Shadow Fel Werebear', 'You may cast Warlock spells while in Bear Form or Dire Bear Form.', 5, 3, 20, 65535, 'aura', '990001');
+    (900019, 'Feltouched Bear', 'You may cast Warlock spells while in Bear Form or Dire Bear Form.', 4, 8, 20, 65535, 'aura', '990001'),
+    (900020, 'Battleborn Bear', 'You may cast Warrior spells while in Bear Form or Dire Bear Form.', 4, 8, 20, 65535, 'aura', '990002'),
+    (900021, 'Lightsworn Bear', 'You may cast Paladin spells while in Bear Form or Dire Bear Form.', 4, 8, 20, 65535, 'aura', '990003'),
+    (900022, 'Wildstalker Bear', 'You may cast Hunter spells while in Bear Form or Dire Bear Form.', 4, 8, 20, 65535, 'aura', '990004'),
+    (900023, 'Nightblade Bear', 'You may cast Rogue spells while in Bear Form or Dire Bear Form.', 4, 8, 20, 65535, 'aura', '990005'),
+    (900024, 'Sanctified Bear', 'You may cast Priest spells while in Bear Form or Dire Bear Form.', 4, 8, 20, 65535, 'aura', '990006'),
+    (900025, 'Stormtouched Bear', 'You may cast Shaman spells while in Bear Form or Dire Bear Form.', 4, 8, 20, 65535, 'aura', '990007'),
+    (900026, 'Arcanebound Bear', 'You may cast Mage spells while in Bear Form or Dire Bear Form.', 4, 8, 20, 65535, 'aura', '990008'),
+    (900027, 'Dreambound Bear', 'You may cast Druid spells while in Bear Form or Dire Bear Form.', 4, 8, 20, 65535, 'aura', '990009'),
+    (900028, 'Runebound Bear', 'You may cast Death Knight spells while in Bear Form or Dire Bear Form.', 4, 8, 20, 65535, 'aura', '990010'),
+    (900029, 'Battleborn Prowler', 'You may cast Warrior spells while in Cat Form.', 4, 8, 20, 65535, 'aura', '990011'),
+    (900030, 'Lightsworn Prowler', 'You may cast Paladin spells while in Cat Form.', 4, 8, 20, 65535, 'aura', '990012'),
+    (900031, 'Wildstalker Prowler', 'You may cast Hunter spells while in Cat Form.', 4, 8, 20, 65535, 'aura', '990013'),
+    (900032, 'Nightblade Prowler', 'You may cast Rogue spells while in Cat Form.', 4, 8, 20, 65535, 'aura', '990014'),
+    (900033, 'Sanctified Prowler', 'You may cast Priest spells while in Cat Form.', 4, 8, 20, 65535, 'aura', '990015'),
+    (900034, 'Stormtouched Prowler', 'You may cast Shaman spells while in Cat Form.', 4, 8, 20, 65535, 'aura', '990016'),
+    (900035, 'Arcanebound Prowler', 'You may cast Mage spells while in Cat Form.', 4, 8, 20, 65535, 'aura', '990017'),
+    (900036, 'Feltouched Prowler', 'You may cast Warlock spells while in Cat Form.', 4, 8, 20, 65535, 'aura', '990018'),
+    (900037, 'Dreambound Prowler', 'You may cast Druid spells while in Cat Form.', 4, 8, 20, 65535, 'aura', '990019'),
+    (900038, 'Runebound Prowler', 'You may cast Death Knight spells while in Cat Form.', 4, 8, 20, 65535, 'aura', '990020'),
+    (900039, 'Battleborn Moonkin', 'You may cast Warrior spells while in Moonkin Form.', 4, 8, 20, 65535, 'aura', '990021'),
+    (900040, 'Lightsworn Moonkin', 'You may cast Paladin spells while in Moonkin Form.', 4, 8, 20, 65535, 'aura', '990022'),
+    (900041, 'Wildstalker Moonkin', 'You may cast Hunter spells while in Moonkin Form.', 4, 8, 20, 65535, 'aura', '990023'),
+    (900042, 'Nightblade Moonkin', 'You may cast Rogue spells while in Moonkin Form.', 4, 8, 20, 65535, 'aura', '990024'),
+    (900043, 'Sanctified Moonkin', 'You may cast Priest spells while in Moonkin Form.', 4, 8, 20, 65535, 'aura', '990025'),
+    (900044, 'Stormtouched Moonkin', 'You may cast Shaman spells while in Moonkin Form.', 4, 8, 20, 65535, 'aura', '990026'),
+    (900045, 'Arcanebound Moonkin', 'You may cast Mage spells while in Moonkin Form.', 4, 8, 20, 65535, 'aura', '990027'),
+    (900046, 'Feltouched Moonkin', 'You may cast Warlock spells while in Moonkin Form.', 4, 8, 20, 65535, 'aura', '990028'),
+    (900047, 'Dreambound Moonkin', 'You may cast Druid spells while in Moonkin Form.', 4, 8, 20, 65535, 'aura', '990029'),
+    (900048, 'Runebound Moonkin', 'You may cast Death Knight spells while in Moonkin Form.', 4, 8, 20, 65535, 'aura', '990030'),
+    (900049, 'Battleborn Treant', 'You may cast Warrior spells while in Tree of Life Form.', 4, 8, 20, 65535, 'aura', '990031'),
+    (900050, 'Lightsworn Treant', 'You may cast Paladin spells while in Tree of Life Form.', 4, 8, 20, 65535, 'aura', '990032'),
+    (900051, 'Wildstalker Treant', 'You may cast Hunter spells while in Tree of Life Form.', 4, 8, 20, 65535, 'aura', '990033'),
+    (900052, 'Nightblade Treant', 'You may cast Rogue spells while in Tree of Life Form.', 4, 8, 20, 65535, 'aura', '990034'),
+    (900053, 'Sanctified Treant', 'You may cast Priest spells while in Tree of Life Form.', 4, 8, 20, 65535, 'aura', '990035'),
+    (900054, 'Stormtouched Treant', 'You may cast Shaman spells while in Tree of Life Form.', 4, 8, 20, 65535, 'aura', '990036'),
+    (900055, 'Arcanebound Treant', 'You may cast Mage spells while in Tree of Life Form.', 4, 8, 20, 65535, 'aura', '990037'),
+    (900056, 'Feltouched Treant', 'You may cast Warlock spells while in Tree of Life Form.', 4, 8, 20, 65535, 'aura', '990038'),
+    (900057, 'Dreambound Treant', 'You may cast Druid spells while in Tree of Life Form.', 4, 8, 20, 65535, 'aura', '990039'),
+    (900058, 'Runebound Treant', 'You may cast Death Knight spells while in Tree of Life Form.', 4, 8, 20, 65535, 'aura', '990040'),
+    (900059, 'Heart of Ursoc', 'You may cast spells of any class while in Bear Form or Dire Bear Form.', 5, 3, 30, 65535, 'aura', '990041'),
+    (900060, 'Grace of Ashamane', 'You may cast spells of any class while in Cat Form.', 5, 3, 30, 65535, 'aura', '990042'),
+    (900061, 'Gift of Elune', 'You may cast spells of any class while in Moonkin Form.', 5, 3, 30, 65535, 'aura', '990043'),
+    (900062, 'Blessing of Nordrassil', 'You may cast spells of any class while in Tree of Life Form.', 5, 3, 30, 65535, 'aura', '990044');
+
+DELETE FROM `custom_form_casting_rules`;
+INSERT INTO `custom_form_casting_rules` (`marker_aura`, `spell_family`, `form_mask`) VALUES
+    (990001, 5, 144),
+    (990002, 4, 144),
+    (990003, 10, 144),
+    (990004, 9, 144),
+    (990005, 8, 144),
+    (990006, 6, 144),
+    (990007, 11, 144),
+    (990008, 3, 144),
+    (990009, 7, 144),
+    (990010, 15, 144),
+    (990011, 4, 1),
+    (990012, 10, 1),
+    (990013, 9, 1),
+    (990014, 8, 1),
+    (990015, 6, 1),
+    (990016, 11, 1),
+    (990017, 3, 1),
+    (990018, 5, 1),
+    (990019, 7, 1),
+    (990020, 15, 1),
+    (990021, 4, 1073741824),
+    (990022, 10, 1073741824),
+    (990023, 9, 1073741824),
+    (990024, 8, 1073741824),
+    (990025, 6, 1073741824),
+    (990026, 11, 1073741824),
+    (990027, 3, 1073741824),
+    (990028, 5, 1073741824),
+    (990029, 7, 1073741824),
+    (990030, 15, 1073741824),
+    (990031, 4, 2),
+    (990032, 10, 2),
+    (990033, 9, 2),
+    (990034, 8, 2),
+    (990035, 6, 2),
+    (990036, 11, 2),
+    (990037, 3, 2),
+    (990038, 5, 2),
+    (990039, 7, 2),
+    (990040, 15, 2),
+    (990041, 0, 144),
+    (990042, 0, 1),
+    (990043, 0, 1073741824),
+    (990044, 0, 2);
