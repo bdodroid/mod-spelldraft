@@ -141,6 +141,8 @@ Once you reach the maximum level (80), you can visit the prestige NPC (Chromie) 
 ### Option A: Automated Installation (Recommended)
 We provide an automated script that performs all server-side staging, configuration, DBC deployment, and C++ Docker image rebuilding.
 
+> **Docker users:** run the script with your container engine reachable (Docker Desktop started / `dockerd` running) and after the server has been brought up at least once (`docker compose up -d`) — the DBC deploy copies into the existing server containers, which works on Windows/macOS/Linux alike. If the script can't find them it prints the exact manual command to run.
+
 1. Clone or copy `mod-spelldraft` into your server's `/modules/` folder:
    ```bash
    git clone <repo_url> modules/mod-spelldraft
@@ -168,9 +170,13 @@ If you prefer to perform the steps yourself, follow this sequence:
    cp -r lua/SpellDraft/* ../../env/dist/etc/modules/lua_scripts/SpellDraft/
    ```
 3. **Copy config:** Copy `conf/mod_spelldraft.conf.dist` to `../../env/dist/etc/modules/mod_spelldraft.conf`.
- 4. **Deploy DBC files:** Copy `dbc/*.dbc` and any compiled server DBCs from `wow-client/DBC/*.dbc` (like `Spell.dbc` and `SpellShapeshiftForm.dbc`) into your server's runtime DBC directory:
-    * **Docker:** Copy files directly into the named volume storage path on your host (e.g. `~/.local/share/containers/storage/volumes/wow-server-playerbots_ac-client-data/_data/dbc/`).
-    * **Local:** Copy files into `/path/to/server/env/dist/data/dbc/`.
+ 4. **Deploy DBC files:** Copy the module's server DBCs (`dbc/*.dbc`, e.g. `Spell.dbc` and `SpellShapeshiftForm.dbc`) into your server's runtime DBC directory:
+    * **Docker/Podman (all platforms, incl. Windows Docker Desktop):** copy through the engine into the client-data container — the DBC folder lives inside a named volume that is usually *not* visible on your host filesystem, and the worldserver mounts it read-only:
+      ```bash
+      docker cp dbc/. ac-client-data-init:/azerothcore/env/dist/data/dbc/
+      ```
+      (Container names may vary — find yours with `docker ps -a --format '{{.Names}}' | grep -E 'client-data|worldserver'`. The server containers must have been created by a first `docker compose up`, and on fresh installs let the client-data download finish before copying, or it will overwrite your files.)
+    * **Local:** Copy files into the `dbc` folder under the `DataDir` set in `worldserver.conf` (default `/path/to/server/env/dist/data/dbc/`).
 5. **Apply C++ core patch (Required for Combo Points):** Apply the C++ core patch to `Unit.cpp` to broadcast custom `SpellDraftCP` addon messages.
 
    Here is the Python script:

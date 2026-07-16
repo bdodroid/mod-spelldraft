@@ -75,13 +75,43 @@ if command -v podman >/dev/null 2>&1 || command -v docker >/dev/null 2>&1; then
         if $CTR_TOOL cp "$MODULE_DIR/dbc/." "$WS_CONTAINER:/azerothcore/env/dist/data/dbc/" 2>/dev/null; then
             echo "DBC files copied into container '$WS_CONTAINER' (/azerothcore/env/dist/data/dbc)."
             DBC_DEPLOYED=1
+        else
+            # If the worldserver mount is read-only, try copying to client-data container (which mounts it rw)
+            DATA_CONTAINER=$($CTR_TOOL ps -a --format '{{.Names}}' 2>/dev/null | grep -m1 'client-data')
+            if [ -n "$DATA_CONTAINER" ]; then
+                if $CTR_TOOL cp "$MODULE_DIR/dbc/." "$DATA_CONTAINER:/azerothcore/env/dist/data/dbc/" 2>/dev/null; then
+                    echo "DBC files copied into container '$DATA_CONTAINER' (/azerothcore/env/dist/data/dbc)."
+                    DBC_DEPLOYED=1
+                fi
+            fi
+        fi
+    fi
+
+    # Fallback: copy using a temporary container mounting the volume if direct cp fails
+    if [ "$DBC_DEPLOYED" -ne 1 ]; then
+        VOL_NAME=""
+        for v in $($CTR_TOOL volume ls -q 2>/dev/null); do
+            if [[ "$v" == *"ac-client-data"* ]]; then
+                VOL_NAME="$v"
+                break
+            fi
+        done
+
+        if [ -n "$VOL_NAME" ]; then
+            IMAGE_NAME=$($CTR_TOOL images --format '{{.Repository}}:{{.Tag}}' 2>/dev/null | grep -E 'client-data|worldserver|authserver|alpine|busybox' | head -n 1)
+            if [ -n "$IMAGE_NAME" ]; then
+                if $CTR_TOOL run --rm -v "$VOL_NAME:/data" -v "$MODULE_DIR/dbc:/src" --entrypoint "" "$IMAGE_NAME" cp -r /src/. /data/dbc/ 2>/dev/null; then
+                    echo "DBC files copied into volume '$VOL_NAME' via temporary container ($IMAGE_NAME)."
+                    DBC_DEPLOYED=1
+                fi
+            fi
         fi
     fi
 
     # Fallback: resolve the client-data named volume on the host (Linux).
     if [ "$DBC_DEPLOYED" -ne 1 ]; then
         VOL_NAME=""
-        for v in $($CTR_TOOL volume ls -q); do
+        for v in $($CTR_TOOL volume ls -q 2>/dev/null); do
             if [[ "$v" == *"ac-client-data"* ]]; then
                 VOL_NAME="$v"
                 break
