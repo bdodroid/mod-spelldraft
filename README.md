@@ -267,6 +267,23 @@ You can customize the draft system parameters by editing `lua_scripts/spelldraft
 | `POOL_AMOUNT` | `45` | The number of spells pooled from the full DB on every new draft. Every time a player reaches a level-up or consumes a Lost Grimoire, the system runs a database query to select 45 random, level-appropriate class abilities based on your configured rarity distribution. Rerolls select from this cached pool in memory instead of repeating heavy database queries, keeping server load minimal. |
 | `RARITY_DISTRIBUTION` | `[0]=0.50, [1]=0.27, ...` | Probability ratios for Common (`[0]`), Uncommon (`[1]`), Rare (`[2]`), Epic (`[3]`), Legendary (`[4]`). |
 
+### Worldserver Configuration (`mod_spelldraft.conf`)
+
+The C++ side of the module reads `etc/modules/mod_spelldraft.conf` (created from `conf/mod_spelldraft.conf.dist` by the installer):
+
+| Setting | Default | Description |
+| :--- | :--- | :--- |
+| `SpellDraft.Enable` | `1` | Enables the C++ hooks (custom weapon/armor proficiencies, secondary power bars, druid form casting). Does not affect the Eluna Lua scripts. |
+| `SpellDraft.AllowSpellsInDruidForms` | `0` | Controls casting while in Druid shapeshift forms (Cat, Bear, Dire Bear, Travel, Aquatic, Tree of Life, Moonkin). See modes below. |
+
+`SpellDraft.AllowSpellsInDruidForms` modes:
+
+* **`0` — Disabled**: native WoW rules; casting a non-form spell fails or unshifts as usual.
+* **`1` — All**: any spell can be cast in any Druid form. The server skips the `SPELL_FAILED_ONLY_SHAPESHIFT` / `SPELL_FAILED_NOT_SHAPESHIFT` checks entirely for players.
+* **`2` — ME (Mystic Enchants)**: form casting is only unlocked by specific Mystic Enchants. Currently the *Shadow Fel Werebear* enchant (marker aura `990001`) allows **Warlock-family** spells while shifted; additional enchant→spell-family rules can be added in `src/SpellDraft.cpp` (see the `castMode == 2` block).
+
+> **Client patch required for modes 1 and 2:** this setting only lifts *server-side* validation. Without the SpellDraft client patch (`patch-P.mpq`, or the compiled `-z` patch on HD clients), the client itself still auto-unshifts or greys out spell buttons while in forms. The patch sets the stance flag on the Druid forms in `SpellShapeshiftForm.dbc` and clears Druid form exclusions from `StancesNot` in `Spell.dbc`.
+
 ### Prestige Shop Customization
 
 The Prestige Shop inventory, item details, and token costs are defined and can be modified in two files:
