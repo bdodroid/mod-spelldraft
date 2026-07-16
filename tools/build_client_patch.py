@@ -4,7 +4,7 @@
 Custom glyphs need three client-side DBC additions (icons, socket gating, panel
 tooltips): Item.dbc, Spell.dbc and GlyphProperties.dbc. The client replaces
 whole files from patch archives, so this tool appends our rows to the NATIVE
-files and packs the results into a fresh MPQ (v1, single-unit uncompressed —
+files and packs the results into a fresh MPQ (v1, plain uncompressed storage —
 readable by the stock 3.3.5 client and by mpyq for verification).
 
 New records are cloned from native template records (no field-layout
@@ -39,7 +39,7 @@ SPELL_NAME_FIELD = 136
 SPELL_DESC_FIELD = 170
 
 # ============================================================================
-# MPQ v1 writer (single-unit, uncompressed)
+# MPQ v1 writer (plain multi-sector, uncompressed)
 # ============================================================================
 
 def _build_crypt_table():
@@ -96,8 +96,12 @@ def write_mpq(dest, files):
 
     for block_index, (name, data) in enumerate(files.items()):
         blobs.append(data)
-        # 0x80000000 EXISTS | 0x01000000 SINGLE_UNIT (stored raw)
-        block_entries.append((offset, len(data), len(data), 0x81000000))
+        # 0x80000000 EXISTS, stored raw as plain multi-sector (uncompressed
+        # files carry no sector-offset table, so the payload is byte-identical).
+        # Do NOT add 0x01000000 SINGLE_UNIT: the 3.3.5 client's async streaming
+        # reader (used for .m2/.anim/.blp loaded during play) mishandles
+        # single-unit files and corrupts the heap -> ERROR #132 on exit.
+        block_entries.append((offset, len(data), len(data), 0x80000000))
         idx = _hash_string(name, 0) & (hash_size - 1)
         while hash_entries[idx][3] != 0xFFFFFFFF:
             idx = (idx + 1) & (hash_size - 1)
@@ -295,7 +299,12 @@ def emit_sql(glyphs, manifest, dest):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--dbc-src', required=True,
-                    help='dir with native Item.dbc, Spell.dbc, GlyphProperties.dbc')
+                    help='dir with the client-effective Item.dbc, Spell.dbc, ... '
+                         '(use tools/extract_client_dbcs.py to produce it)')
+    ap.add_argument('--hd-locale', metavar='LOCALE',
+                    help='ALSO write wow-client/Data/<LOCALE>/patch-<LOCALE>-z.mpq '
+                         'for HD repack clients whose own lettered patches outrank '
+                         'patch-P (e.g. --hd-locale enUS). Deploy ONE archive only.')
     args = ap.parse_args()
     src = Path(args.dbc_src)
 
@@ -304,6 +313,36 @@ def main():
     items = Dbc(src / 'native_Item.dbc' if (src / 'native_Item.dbc').exists() else src / 'Item.dbc')
     spells = Dbc(src / 'native_Spell.dbc' if (src / 'native_Spell.dbc').exists() else src / 'Spell.dbc')
     props = Dbc(src / 'native_GlyphProperties.dbc' if (src / 'native_GlyphProperties.dbc').exists() else src / 'GlyphProperties.dbc')
+    shapeshifts = Dbc(src / 'native_SpellShapeshiftForm.dbc' if (src / 'native_SpellShapeshiftForm.dbc').exists() else src / 'SpellShapeshiftForm.dbc')
+
+    # Set SHAPESHIFT_FLAG_STANCE (0x1) for Druid forms in SpellShapeshiftForm.dbc
+    # to allow the client to cast any spell without auto-unshifting.
+    DRUID_FORMS = {1, 3, 4, 5, 8} # Cat, Travel, Aqua, Bear, Dire Bear
+    for i in range(shapeshifts.recs):
+        offset = i * shapeshifts.recsize
+        row = list(struct.unpack_from(f'<{shapeshifts.fields}i', shapeshifts.records, offset))
+        form_id = row[0]
+        if form_id in DRUID_FORMS:
+            row[19] |= 1  # Field 19 is flags1
+            struct.pack_into(f'<{shapeshifts.fields}i', shapeshifts.records, offset, *row)
+
+    # Clear Druid form bits from StancesNot so no spell is blocked while
+    # shapeshifted. 3.3.5 Spell.dbc stores Stances/StancesNot as 64-bit pairs:
+    # Stances = fields 12-13, StancesNot = fields 14-15 (13/15 are always-zero
+    # high words). Only field 14 is touched. Never OR Druid bits into Stances
+    # (field 12): the client renders every Stances bit into the fixed-size
+    # "Requires <form>, ..." tooltip line, and inflating ~1000 spells' masks
+    # overflows that buffer -> silent heap corruption -> ERROR #132 on exit.
+    # Casting-while-shifted is granted by SHAPESHIFT_FLAG_STANCE above instead.
+    DRUID_FORM_MASK = (1 << 0) | (1 << 1) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 7) | (1 << 30)
+    for i in range(spells.recs):
+        offset = i * spells.recsize
+        row = list(struct.unpack_from(f'<{spells.fields}i', spells.records, offset))
+        stances_not = row[14] & 0xFFFFFFFF
+        if stances_not & DRUID_FORM_MASK:
+            stances_not &= ~DRUID_FORM_MASK
+            row[14] = stances_not if stances_not < 0x80000000 else stances_not - 0x100000000
+            struct.pack_into(f'<{spells.fields}i', spells.records, offset, *row)
 
     apply_template = spells.get_record(APPLY_TEMPLATE_SPELL)
     marker_template = spells.get_record(MARKER_TEMPLATE_SPELL)
@@ -358,6 +397,7 @@ def main():
         'DBFilesClient\\GlyphProperties.dbc': props.dumps(),
         'DBFilesClient\\CreatureModelData.dbc': cmd.dumps(),
         'DBFilesClient\\CreatureDisplayInfo.dbc': cdi.dumps(),
+        'DBFilesClient\\SpellShapeshiftForm.dbc': shapeshifts.dumps(),
     }
     for md in manifest.get('model_dirs', []):
         src_dir = Path(md['src'])
@@ -378,6 +418,30 @@ def main():
     dest = MODULE / 'wow-client/Data/patch-P.mpq'
     write_mpq(dest, archive)
     print(f'wrote {dest} ({dest.stat().st_size} bytes)')
+
+    # Optional locale override patch for HD repack clients: repacks ship their
+    # own lettered patches (e.g. patch-enUS-s.mpq) that outrank patch-P, so a
+    # locale patch with a higher letter is needed to win the override chain.
+    if args.hd_locale:
+        loc = args.hd_locale
+        localized_dir = MODULE / 'wow-client/Data' / loc
+        localized_dir.mkdir(parents=True, exist_ok=True)
+        dest_loc = localized_dir / f'patch-{loc}-z.mpq'
+        write_mpq(dest_loc, archive)
+        print(f'wrote HD locale override to {dest_loc}')
+        print()
+        print(f'WARNING: deploy EXACTLY ONE archive per client — patch-{loc}-z.mpq for')
+        print('the HD client it was built against, patch-P.mpq for native clients.')
+        print('Mounting the same archive twice corrupts the 3.3.5 client heap and')
+        print('crashes with ERROR #132 on exit.')
+
+
+    # Write loose DBCs for server deployment (install.sh will copy these to the server)
+    server_dbc_dir = MODULE / 'dbc'
+    server_dbc_dir.mkdir(parents=True, exist_ok=True)
+    (server_dbc_dir / 'Spell.dbc').write_bytes(spells.dumps())
+    (server_dbc_dir / 'SpellShapeshiftForm.dbc').write_bytes(shapeshifts.dumps())
+    print(f'wrote loose server DBCs to {server_dbc_dir}')
 
     sql_dest = MODULE / 'data/sql/db-world/25_custom_glyphs_client.sql'
     emit_sql(glyphs, manifest, sql_dest)

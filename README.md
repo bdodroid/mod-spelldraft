@@ -23,8 +23,11 @@ Designed primarily for players who want a fun, rogue-like draft experience on th
 
 If you are a player connecting to a server running SpellDraft, you do **not** need to install or build the server module. You only need the client files:
 1. Go to the **Releases** section of this repository and download the latest `wow-client.zip`.
-2. Extract the zip file and copy the contents (`Data/` and `Interface/` folders) directly into your World of Warcraft game directory, merging them with your existing folders.
-3. **Fully close and relaunch the game** after copying — the `Data/patch-P.mpq` archive (custom titles, spells, glyphs, and models) only loads at client startup, not on `/reload`.
+2. Extract the zip file, copy the `Interface/` folder into your World of Warcraft game directory, and copy `Data/patch-P.mpq` into your client's `Data/` folder.
+   * The shipped `patch-P.mpq` is built for the **native (unmodified) WotLK 3.3.5a client**.
+   * **HD / custom repack clients**: do **not** use the shipped archive — it would override your repack's databases with vanilla data (broken/green models, altered tooltips). A patch must be compiled against your specific repack; see [Building Client Patches for HD Repacks](#building-client-patches-for-hd-repacks) (usually your server owner provides this build).
+   * ⚠️ Install exactly **one** SpellDraft patch archive. Mounting the same archive twice (e.g. as both `patch-P.mpq` and a locale patch) silently corrupts the 3.3.5 client's memory and crashes with `ERROR #132` on every exit.
+3. **Fully close and relaunch the game** after copying — custom `.mpq` patches only load at client startup, not on `/reload`.
 
 ---
 
@@ -79,7 +82,7 @@ Weapons and armor of Uncommon quality or better that you **loot, craft, or win**
 
 Visit **Nibbs the Imp** and choose *Open Mystic Enchant services* for the enchanting window:
 *   **Reroll / Imbue** — drag an item into the slot and pay gold to reroll its enchant, or to add one to an un-enchanted item.
-*   **Golden Imbue** — spend a **Prestige Token** for a guaranteed **Epic-or-better** enchant.
+*   **Reroll / Imbue (Epic+)** — spend a **Prestige Token** for a guaranteed **Epic-or-better** enchant.
 *   **Transfer** — pay gold (scaling with the enchant's rarity) to move an enchant from one item to another. Overwriting the destination's enchant asks for confirmation; the source keeps a spent marker.
 
 ## Cosmetic & Custom Glyphs
@@ -138,6 +141,8 @@ Once you reach the maximum level (80), you can visit the prestige NPC (Chromie) 
 ### Option A: Automated Installation (Recommended)
 We provide an automated script that performs all server-side staging, configuration, DBC deployment, and C++ Docker image rebuilding.
 
+> **Docker users:** run the script with your container engine reachable (Docker Desktop started / `dockerd` running) and after the server has been brought up at least once (`docker compose up -d`) — the DBC deploy copies into the existing server containers, which works on Windows/macOS/Linux alike. If the script can't find them it prints the exact manual command to run.
+
 1. Clone or copy `mod-spelldraft` into your server's `/modules/` folder:
    ```bash
    git clone <repo_url> modules/mod-spelldraft
@@ -147,7 +152,7 @@ We provide an automated script that performs all server-side staging, configurat
    cd modules/mod-spelldraft
    ./install.sh
    ```
- 3. **Install Client files:** Copy/merge the contents of the `wow-client/` directory in the cloned repository directly into your World of Warcraft game directory (so that `wow-client/Data/patch-P.mpq` lands in your client's `Data/` folder and `wow-client/Interface/AddOns/SpellDraft` merges with `Interface/AddOns/SpellDraft`).
+ 3. **Install Client files:** Copy `wow-client/Interface/AddOns/SpellDraft` into your client's `Interface/AddOns/`, and copy `wow-client/Data/patch-P.mpq` into your client's `Data/` folder (native 3.3.5a clients; HD repack users must compile their own patch — see the HD section). Install exactly **one** SpellDraft archive per client — mounting the same archive twice corrupts the client heap and crashes with `ERROR #132` on every exit.
  4. Restart your server!
 
 ---
@@ -165,9 +170,13 @@ If you prefer to perform the steps yourself, follow this sequence:
    cp -r lua/SpellDraft/* ../../env/dist/etc/modules/lua_scripts/SpellDraft/
    ```
 3. **Copy config:** Copy `conf/mod_spelldraft.conf.dist` to `../../env/dist/etc/modules/mod_spelldraft.conf`.
-4. **Deploy DBC files:** Copy `dbc/*.dbc` into your server's runtime DBC directory:
-   * **Docker:** Copy files directly into the named volume storage path on your host (e.g. `~/.local/share/containers/storage/volumes/wow-server-playerbots_ac-client-data/_data/dbc/`).
-   * **Local:** Copy files into `/path/to/server/env/dist/data/dbc/`.
+ 4. **Deploy DBC files:** Copy the module's server DBCs (`dbc/*.dbc`, e.g. `Spell.dbc` and `SpellShapeshiftForm.dbc`) into your server's runtime DBC directory:
+    * **Docker/Podman (all platforms, incl. Windows Docker Desktop):** copy through the engine into the client-data container — the DBC folder lives inside a named volume that is usually *not* visible on your host filesystem, and the worldserver mounts it read-only:
+      ```bash
+      docker cp dbc/. ac-client-data-init:/azerothcore/env/dist/data/dbc/
+      ```
+      (Container names may vary — find yours with `docker ps -a --format '{{.Names}}' | grep -E 'client-data|worldserver'`. The server containers must have been created by a first `docker compose up`, and on fresh installs let the client-data download finish before copying, or it will overwrite your files.)
+    * **Local:** Copy files into the `dbc` folder under the `DataDir` set in `worldserver.conf` (default `/path/to/server/env/dist/data/dbc/`).
 5. **Apply C++ core patch (Required for Combo Points):** Apply the C++ core patch to `Unit.cpp` to broadcast custom `SpellDraftCP` addon messages.
 
    Here is the Python script:
@@ -206,7 +215,7 @@ If you prefer to perform the steps yourself, follow this sequence:
 6. **Rebuild server:** Compile the C++ module code:
    * **Docker:** Rebuild the container: `docker compose build ac-worldserver` (or `docker compose up -d --build`).
    * **Local:** Run your local CMake and compilation toolchain.
- 7. **Install Client files:** Copy/merge the contents of the `wow-client/` directory directly into your World of Warcraft client folder (which merges the `Data/` and `Interface/` subdirectories).
+ 7. **Install Client files:** Copy/merge the contents of the `wow-client/` directory directly into your World of Warcraft client folder (which merges the `Data/` (including `Data/enUS/` locale patches) and `Interface/` subdirectories).
 
 </details>
 
@@ -264,6 +273,26 @@ You can customize the draft system parameters by editing `lua_scripts/spelldraft
 | `POOL_AMOUNT` | `45` | The number of spells pooled from the full DB on every new draft. Every time a player reaches a level-up or consumes a Lost Grimoire, the system runs a database query to select 45 random, level-appropriate class abilities based on your configured rarity distribution. Rerolls select from this cached pool in memory instead of repeating heavy database queries, keeping server load minimal. |
 | `RARITY_DISTRIBUTION` | `[0]=0.50, [1]=0.27, ...` | Probability ratios for Common (`[0]`), Uncommon (`[1]`), Rare (`[2]`), Epic (`[3]`), Legendary (`[4]`). |
 
+### Worldserver Configuration (`mod_spelldraft.conf`)
+
+The C++ side of the module reads `etc/modules/mod_spelldraft.conf` (created from `conf/mod_spelldraft.conf.dist` by the installer):
+
+| Setting | Default | Description |
+| :--- | :--- | :--- |
+| `SpellDraft.Enable` | `1` | Enables the C++ hooks (custom weapon/armor proficiencies, secondary power bars, druid form casting). Does not affect the Eluna Lua scripts. |
+| `SpellDraft.AllowSpellsInDruidForms` | `0` | Controls casting while in Druid shapeshift forms (Cat, Bear, Dire Bear, Travel, Aquatic, Tree of Life, Moonkin). See modes below. |
+
+`SpellDraft.AllowSpellsInDruidForms` modes:
+
+* **`0` — Disabled**: native WoW rules; casting a non-form spell fails or unshifts as usual.
+* **`1` — All**: any spell can be cast in any Druid form. The server skips the `SPELL_FAILED_ONLY_SHAPESHIFT` / `SPELL_FAILED_NOT_SHAPESHIFT` checks entirely for players.
+* **`2` — ME (Mystic Enchants)**: form casting is only unlocked by Mystic Enchants, each covering one class family on one form group. A full set ships in `data/sql/db-world/26_druid_form_casting_enchant.sql`:
+  * **Epic tier** (40 enchants): one class on one form — `<Class-flavor> Bear / Prowler / Moonkin / Treant` (e.g. *Feltouched Bear* = Warlock in Bear/Dire Bear, *Arcanebound Prowler* = Mage in Cat).
+  * **Legendary tier** (4 enchants, rarest): **all** classes on one form — *Heart of Ursoc* (Bear), *Grace of Ashamane* (Cat), *Gift of Elune* (Moonkin), *Blessing of Nordrassil* (Tree of Life).
+  * Rules are data-driven: the C++ reads `custom_form_casting_rules` (`marker_aura`, `spell_family` — 0 = any class, `form_mask` — bit = form id − 1) at startup, so new enchants need only SQL (marker aura in `spell_dbc` + `custom_random_enchantments` row + rule row) and a server restart.
+
+> **Client patch required for modes 1 and 2:** this setting only lifts *server-side* validation. Without the SpellDraft client patch (`patch-P.mpq`, or the compiled `-z` patch on HD clients), the client itself still auto-unshifts or greys out spell buttons while in forms. The patch sets the stance flag on the Druid forms in `SpellShapeshiftForm.dbc` and clears Druid form exclusions from `StancesNot` in `Spell.dbc`.
+
 ### Prestige Shop Customization
 
 The Prestige Shop inventory, item details, and token costs are defined and can be modified in two files:
@@ -305,6 +334,30 @@ For testing and verification in-game, you can use the following `.additem` comma
 *   Beta cosmetic glyphs: `.additem 40484` (White Bear), `.additem 40948` (Red Lynx), `.additem 43336` (Black Bear), `.additem 43337` (Forest Lynx), `.additem 43384` (Black Wolf)
 *   Open the talent window → **Glyphs** tab, click the glyph item, then click a matching socket (level 15+). Minor glyphs morph the listed form; check effect glyphs with their combat proc.
 *   Forgotten Grimoire spawns: `.go xyz -10782 -1378 40 0` (Duskwood), `.go xyz -7580 199 12 1` (Silithus), `.go xyz 4110 -4740 101 571` (Grizzly Hills).
+
+---
+
+## Building Client Patches for HD Repacks
+
+The repository ships `wow-client/Data/patch-P.mpq` built for the **native 3.3.5a client only**. A client counts as "native" only if its `Data/` folder contains nothing beyond Blizzard's archives (`common`, `expansion`, `lichking`, `patch`, `patch-2`, `patch-3` + locale equivalents) — any extra lettered `patch-*.mpq` (HD model packs, repack content) means you need a custom compile, even if the install is labelled a clean client. HD / custom repack clients need their own compile, for two reasons:
+
+1. **Repacks ship modified DBCs.** They replace creature meshes/textures and often far more (one tested repack carries a 67 MB custom `Spell.dbc` in `patch-enUS-s.mpq`). Overriding those tables with native-based files breaks the repack: neon-green/invisible creature models, altered tooltips, and dangling database references that can destabilize the client. The patch must be compiled from the DBCs *your* repack actually uses — every repack is different, so no prebuilt HD archive is shipped.
+2. **Repacks ship high-letter patches.** MPQ archives load in slot order (`patch-2..9`, then `patch-a..z`, locale patches outranking base ones at the same letter). A repack's own `patch-enUS-s.mpq` outranks `patch-P.mpq`, silently disabling SpellDraft's data — so HD builds are emitted as a **locale `-z` patch**, which outranks everything.
+
+The two bundled tools handle this (no external MPQ software needed):
+
+1. **Extract the client's effective DBCs** — the extractor walks the repack's full archive chain in load order and pulls out the version of each table the client actually resolves:
+   ```bash
+   python3 tools/extract_client_dbcs.py "/path/to/your hd client" /path/to/dbc_src
+   ```
+2. **Compile with an HD locale override patch:**
+   ```bash
+   python3 tools/build_client_patch.py --dbc-src /path/to/dbc_src --hd-locale enUS
+   ```
+   (Match `--hd-locale` to the client's locale folder, e.g. `enGB`, `deDE`.)
+3. **Deploy** the resulting `wow-client/Data/enUS/patch-enUS-z.mpq` into the client's `Data/enUS/` folder. Do **not** also deploy `patch-P.mpq` — exactly one SpellDraft archive per client, ever (see the ERROR #132 warning in the connection guide).
+
+Since all custom spells, items, glyphs, and models are defined in the single source of truth (`tools/client_patch_manifest.json`), compiling with your client's own database files as a base fully preserves all repack customizations while seamlessly adding all module features.
 
 ---
 

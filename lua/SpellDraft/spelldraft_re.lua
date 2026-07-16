@@ -120,6 +120,36 @@ do
             enchantCount = enchantCount + 1
         until not q:NextRow()
     end
+
+    -- Form-casting enchants (mode 2 of SpellDraft.AllowSpellsInDruidForms) are
+    -- pulled from the roll pool unless the server actually runs mode 2. The
+    -- definitions stay loaded so already-rolled items keep their name/aura.
+    local castMode = tonumber(GetConfigValue and GetConfigValue("SpellDraft.AllowSpellsInDruidForms") or 0) or 0
+    local rulesProbe = WorldDBQuery([[
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = DATABASE() AND table_name = 'custom_form_casting_rules'
+    ]])
+    if castMode ~= 2 and rulesProbe then
+        local markers = {}
+        local rq = WorldDBQuery("SELECT marker_aura FROM custom_form_casting_rules")
+        if rq then
+            repeat
+                markers[rq:GetUInt32(0)] = true
+            until not rq:NextRow()
+        end
+        local pulled = 0
+        for _, e in pairs(enchants) do
+            if e.handler == "aura" and e.auraSpell and markers[e.auraSpell] then
+                e.disabledFromPool = true
+                pulled = pulled + 1
+            end
+        end
+        if pulled > 0 then
+            print("[SpellDraft] " .. pulled .. " form-casting enchants removed from the roll pool"
+                .. " (AllowSpellsInDruidForms mode " .. castMode .. ", requires mode 2).")
+        end
+    end
+
     print("[SpellDraft] RE system loaded " .. enchantCount .. " enchant definitions.")
 end
 
@@ -221,7 +251,8 @@ local function PickEnchant(playerLevel, invTypeBit, minQuality, excludeId)
     for _, e in pairs(enchants) do
         if e.minLevel <= playerLevel and bit_and(e.slotMask, invTypeBit) ~= 0
             and (not minQuality or e.quality >= minQuality)
-            and e.id ~= excludeId then
+            and e.id ~= excludeId
+            and not e.disabledFromPool then
             eligible[#eligible + 1] = e
             total = total + e.weight
         end

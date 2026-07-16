@@ -51,6 +51,8 @@ fi
 
 # ── 3. DETECT DBC DIRECTORY & DEPLOY DBC FILES ─────────────────────
 DBC_DIR=""
+DBC_DEPLOYED=0
+CTR_TOOL=""
 
 # Determine if running under Docker/Podman
 if command -v podman >/dev/null 2>&1 || command -v docker >/dev/null 2>&1; then
@@ -65,40 +67,93 @@ if command -v podman >/dev/null 2>&1 || command -v docker >/dev/null 2>&1; then
         CTR_TOOL="podman"
     fi
 
-    # Query the database client-data named volume
-    VOL_NAME=""
-    for v in $($CTR_TOOL volume ls -q); do
-        if [[ "$v" == *"ac-client-data"* ]]; then
-            VOL_NAME="$v"
-            break
+    # Preferred: copy straight into the worldserver container. This works on
+    # every platform — on Windows/macOS the volume mountpoint lives inside the
+    # Docker Desktop VM and is NOT visible from the host filesystem.
+    WS_CONTAINER=$($CTR_TOOL ps -a --format '{{.Names}}' 2>/dev/null | grep -m1 'worldserver')
+    if [ -n "$WS_CONTAINER" ]; then
+        if $CTR_TOOL cp "$MODULE_DIR/dbc/." "$WS_CONTAINER:/azerothcore/env/dist/data/dbc/" 2>/dev/null; then
+            echo "DBC files copied into container '$WS_CONTAINER' (/azerothcore/env/dist/data/dbc)."
+            DBC_DEPLOYED=1
+        else
+            # If the worldserver mount is read-only, try copying to client-data container (which mounts it rw)
+            DATA_CONTAINER=$($CTR_TOOL ps -a --format '{{.Names}}' 2>/dev/null | grep -m1 'client-data')
+            if [ -n "$DATA_CONTAINER" ]; then
+                if $CTR_TOOL cp "$MODULE_DIR/dbc/." "$DATA_CONTAINER:/azerothcore/env/dist/data/dbc/" 2>/dev/null; then
+                    echo "DBC files copied into container '$DATA_CONTAINER' (/azerothcore/env/dist/data/dbc)."
+                    DBC_DEPLOYED=1
+                fi
+            fi
         fi
-    done
+    fi
 
-    if [ -n "$VOL_NAME" ]; then
-        MOUNT_POINT=$($CTR_TOOL volume inspect "$VOL_NAME" --format '{{.Mountpoint}}' 2>/dev/null)
-        if [ -d "$MOUNT_POINT" ]; then
-            DBC_DIR="$MOUNT_POINT/dbc"
+    # Fallback: copy using a temporary container mounting the volume if direct cp fails
+    if [ "$DBC_DEPLOYED" -ne 1 ]; then
+        VOL_NAME=""
+        for v in $($CTR_TOOL volume ls -q 2>/dev/null); do
+            if [[ "$v" == *"ac-client-data"* ]]; then
+                VOL_NAME="$v"
+                break
+            fi
+        done
+
+        if [ -n "$VOL_NAME" ]; then
+            IMAGE_NAME=$($CTR_TOOL images --format '{{.Repository}}:{{.Tag}}' 2>/dev/null | grep -E 'client-data|worldserver|authserver|alpine|busybox' | head -n 1)
+            if [ -n "$IMAGE_NAME" ]; then
+                if $CTR_TOOL run --rm -v "$VOL_NAME:/data" -v "$MODULE_DIR/dbc:/src" --entrypoint "" "$IMAGE_NAME" cp -r /src/. /data/dbc/ 2>/dev/null; then
+                    echo "DBC files copied into volume '$VOL_NAME' via temporary container ($IMAGE_NAME)."
+                    DBC_DEPLOYED=1
+                fi
+            fi
+        fi
+    fi
+
+    # Fallback: resolve the client-data named volume on the host (Linux).
+    if [ "$DBC_DEPLOYED" -ne 1 ]; then
+        VOL_NAME=""
+        for v in $($CTR_TOOL volume ls -q 2>/dev/null); do
+            if [[ "$v" == *"ac-client-data"* ]]; then
+                VOL_NAME="$v"
+                break
+            fi
+        done
+
+        if [ -n "$VOL_NAME" ]; then
+            MOUNT_POINT=$($CTR_TOOL volume inspect "$VOL_NAME" --format '{{.Mountpoint}}' 2>/dev/null)
+            if [ -d "$MOUNT_POINT" ]; then
+                DBC_DIR="$MOUNT_POINT/dbc"
+            fi
         fi
     fi
 fi
 
 # Fallback to local compile path if container volume not found
-if [ -z "$DBC_DIR" ]; then
+if [ "$DBC_DEPLOYED" -ne 1 ] && [ -z "$DBC_DIR" ]; then
     DBC_DIR="$SERVER_DIR/env/dist/data/dbc"
 fi
 
 # Deploy DBCs if directory found
-if [ -d "$DBC_DIR" ]; then
+if [ "$DBC_DEPLOYED" -eq 1 ]; then
+    : # already copied into the container above
+elif [ -d "$DBC_DIR" ]; then
     echo "Deploying custom DBC files to: $DBC_DIR"
     if cp "$MODULE_DIR/dbc/"*.dbc "$DBC_DIR/"; then
         echo "DBC files successfully copied."
     else
         echo "Error: Failed to copy DBC files to $DBC_DIR."
-        echo "You may need elevated permissions. Otherwise, copy the contents of dbc/ manually into your server's Data/dbc/ folder."
+        echo "You may need elevated permissions. Otherwise, copy the contents of dbc/ manually into your server's DBC directory (see below)."
+        DBC_DIR=""
     fi
 else
     echo "Warning: Could not automatically locate your server's DBC directory."
-    echo "Please copy the contents of dbc/ manually into your server's Data/dbc/ folder."
+    echo "Copy the contents of dbc/ manually:"
+    if [ -n "$CTR_TOOL" ]; then
+        echo "  * Docker/Podman (incl. Windows Docker Desktop): create/start the worldserver container first, then run:"
+        echo "      $CTR_TOOL cp \"$MODULE_DIR/dbc/.\" ac-worldserver:/azerothcore/env/dist/data/dbc/"
+        echo "    (the DBC folder lives inside the container's data volume — it does not exist on your host filesystem)"
+    fi
+    echo "  * Local/repack builds: copy dbc/*.dbc into the 'dbc' folder under the DataDir path set in worldserver.conf"
+    echo "    (default: <server>/env/dist/data/dbc)."
 fi
 
 # ── 4. PATCH CORE C++ FOR COMBO POINTS ──────────────────────────

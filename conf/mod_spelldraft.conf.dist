@@ -33,3 +33,16 @@
 #
 
 SpellDraft.Enable = 1
+
+#
+#    SpellDraft.AllowSpellsInDruidForms
+#        Description: Allow casting spells while in Druid shapeshift forms
+#                     (Cat, Bear, Dire Bear, Travel, Aquatic, Tree of Life, Moonkin).
+#                     Note: This handles server-side validation. A client-side DBC
+#                     patch is still needed to prevent the client from graying out icons.
+#        Default:     0 - Disabled (Default native WoW rules)
+#                     1 - All (Allow casting any spell in Druid forms)
+#                     2 - ME (Only allow casting spells if matching Mystic Enchants are active)
+#
+
+SpellDraft.AllowSpellsInDruidForms = 0
