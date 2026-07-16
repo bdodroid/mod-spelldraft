@@ -17,4 +17,4 @@ INSERT INTO `spell_dbc`
 DELETE FROM `custom_random_enchantments` WHERE `id` = 900019;
 INSERT INTO `custom_random_enchantments`
     (`id`, `name`, `tooltip`, `quality`, `weight`, `min_level`, `slot_mask`, `handler`, `handler_data`) VALUES
-    (900019, 'Shadow Fel Werebear', 'You may cast Warlock spells while in Druid shapeshift forms.', 5, 3, 20, 65535, 'aura', '990001');
+    (900019, 'Shadow Fel Werebear', 'You may cast Warlock spells while in Bear Form or Dire Bear Form.', 5, 3, 20, 65535, 'aura', '990001');

@@ -153,6 +153,24 @@ static bool IsDruidShapeshiftSpell(SpellInfo const* spellInfo)
     return false;
 }
 
+// Mode 2 (Mystic Enchants): while the marker aura is active, spells of the
+// given family may be cast in the druid forms covered by formMask (bit is
+// form - 1, the Spell.dbc Stances convention). Add new enchant rules here —
+// each needs a marker aura in 26_druid_form_casting_enchant.sql (spell_dbc)
+// and a custom_random_enchantments row applying it.
+struct EnchantCastRule
+{
+    uint32 markerAura;
+    uint32 spellFamily;
+    uint32 formMask;
+};
+
+static EnchantCastRule const ENCHANT_CAST_RULES[] =
+{
+    // Shadow Fel Werebear: Warlock spells, Bear / Dire Bear forms only.
+    { 990001, SPELLFAMILY_WARLOCK, (1u << (FORM_BEAR - 1)) | (1u << (FORM_DIREBEAR - 1)) },
+};
+
 // Druid-family utility that Tree of Life natively permits (its StancesNot in
 // native Spell.dbc lacks the tree bit): cures, Mark/Gift of the Wild, Thorns,
 // Nature's Grasp, Nature's Swiftness, Barkskin — all ranks.
@@ -213,22 +231,26 @@ public:
                 return;
             }
 
-            // Mode 2: Allow casting based on active Mystic Enchants / Auras
+            // Mode 2: Allow casting based on active Mystic Enchants / Auras,
+            // limited to the specific forms each enchant covers.
             if (castMode == 2)
             {
-                // Custom Enchant support: "Shadow Fel Werebear"
-                // Enchant marker aura 990001 allows casting Warlock spells in form.
-                if (player->HasAura(990001))
+                if (SpellInfo const* spellInfo = spell->GetSpellInfo())
                 {
-                    SpellInfo const* spellInfo = spell->GetSpellInfo();
-                    if (spellInfo && spellInfo->SpellFamilyName == SPELLFAMILY_WARLOCK)
+                    for (auto const& rule : ENCHANT_CAST_RULES)
                     {
-                        res = SPELL_CAST_OK;
-                        return;
+                        if ((rule.formMask & (uint32(1) << (form - 1)))
+                            && spellInfo->SpellFamilyName == rule.spellFamily
+                            && player->HasAura(rule.markerAura))
+                        {
+                            res = SPELL_CAST_OK;
+                            return;
+                        }
                     }
                 }
 
-                // You can add additional enchant-specific casting rules here!
+                // No matching enchant for this spell in this form:
+                // fall through to the native shapeshift rules below.
             }
 
             // Otherwise (castMode == 0, or castMode == 2 but no matching enchant was

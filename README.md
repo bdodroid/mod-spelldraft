@@ -280,7 +280,7 @@ The C++ side of the module reads `etc/modules/mod_spelldraft.conf` (created from
 
 * **`0` — Disabled**: native WoW rules; casting a non-form spell fails or unshifts as usual.
 * **`1` — All**: any spell can be cast in any Druid form. The server skips the `SPELL_FAILED_ONLY_SHAPESHIFT` / `SPELL_FAILED_NOT_SHAPESHIFT` checks entirely for players.
-* **`2` — ME (Mystic Enchants)**: form casting is only unlocked by specific Mystic Enchants. Currently the *Shadow Fel Werebear* enchant (marker aura `990001`) allows **Warlock-family** spells while shifted; additional enchant→spell-family rules can be added in `src/SpellDraft.cpp` (see the `castMode == 2` block).
+* **`2` — ME (Mystic Enchants)**: form casting is only unlocked by specific Mystic Enchants, each limited to specific forms. Currently the *Shadow Fel Werebear* enchant (marker aura `990001`, RE `900019`) allows **Warlock-family** spells while in **Bear/Dire Bear Form** only; other forms keep native rules. Add enchant→family→form rules in the `ENCHANT_CAST_RULES` table in `src/SpellDraft.cpp` (marker aura + RE row live in `data/sql/db-world/26_druid_form_casting_enchant.sql`).
 
 > **Client patch required for modes 1 and 2:** this setting only lifts *server-side* validation. Without the SpellDraft client patch (`patch-P.mpq`, or the compiled `-z` patch on HD clients), the client itself still auto-unshifts or greys out spell buttons while in forms. The patch sets the stance flag on the Druid forms in `SpellShapeshiftForm.dbc` and clears Druid form exclusions from `StancesNot` in `Spell.dbc`.
 
