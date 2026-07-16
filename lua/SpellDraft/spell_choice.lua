@@ -1691,18 +1691,15 @@ RegisterItemEvent(4427, 2, function(event, player, item, target)
     
     CharDBExecute("UPDATE prestige_stats SET rerolls = rerolls + 1 WHERE player_id = " .. guid)
     
-    -- Fetch new total and notify client
-    local q = CharDBQuery("SELECT rerolls FROM prestige_stats WHERE player_id = " .. guid)
-    if q then
-        player:SendAddonMessage("SpellChoiceRerolls", tostring(q:GetUInt32(0)), 0, player)
-    end
-    
     player:SendBroadcastMessage("|cff00ff00Scroll of Reroll consumed. Gained +1 Draft Reroll!|r")
     player:CastSpell(player, 14752, true)
     CreateLuaEvent(function()
         local p = GetPlayerByGUID(guid)
-        if p then p:RemoveAura(14752) end
-    end, 100, 1)
+        if p then
+            p:RemoveAura(14752)
+            SyncDraftStats(p)
+        end
+    end, 200, 1)
     
     return false -- prevent default spell cast/consumption
 end)
@@ -1725,18 +1722,15 @@ RegisterItemEvent(1078, 2, function(event, player, item, target)
     
     CharDBExecute("UPDATE prestige_stats SET bans = bans + 1 WHERE player_id = " .. guid)
     
-    -- Fetch new total and notify client
-    local q = CharDBQuery("SELECT bans FROM prestige_stats WHERE player_id = " .. guid)
-    if q then
-        player:SendAddonMessage("SpellChoiceBansLeft", tostring(q:GetUInt32(0)), 0, player)
-    end
-    
     player:SendBroadcastMessage("|cff00ff00Scroll of Ban consumed. Gained +1 Draft Ban!|r")
     player:CastSpell(player, 14752, true)
     CreateLuaEvent(function()
         local p = GetPlayerByGUID(guid)
-        if p then p:RemoveAura(14752) end
-    end, 100, 1)
+        if p then
+            p:RemoveAura(14752)
+            SyncDraftStats(p)
+        end
+    end, 200, 1)
     
     return false
 end)
@@ -1791,25 +1785,17 @@ RegisterItemEvent(13149, 2, function(event, player, item, target)
     currentDraftChoices[guid] = spells
     SaveSpellsToDB(guid, spells)
     
-    -- Update client stats and open draft UI
-    player:SendAddonMessage("SpellChoiceStatus", "prestiged", 0, player)
-    
-    local q = CharDBQuery("SELECT total_expected_drafts, successful_drafts FROM prestige_stats WHERE player_id = " .. guid)
-    if q then
-        local expected = q:GetUInt32(0)
-        local successful = q:GetUInt32(1)
-        local remaining = math.max(0, expected - successful)
-        player:SendAddonMessage("SpellChoiceDrafts", tostring(remaining), 0, player)
-    end
-    
     SendDraftChoices(player, spells)
     
     player:SendBroadcastMessage("|cff00ff00Lost Grimoire consumed. A bonus draft has opened!|r")
     player:CastSpell(player, 14752, true)
     CreateLuaEvent(function()
         local p = GetPlayerByGUID(guid)
-        if p then p:RemoveAura(14752) end
-    end, 100, 1)
+        if p then
+            p:RemoveAura(14752)
+            SyncDraftStats(p)
+        end
+    end, 200, 1)
     
     return false
 end)
