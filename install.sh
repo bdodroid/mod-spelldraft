@@ -558,6 +558,78 @@ else
     echo "Warning: Could not locate PlayerGossip.cpp at $PLAYERGOSSIP_CPP. Skipping core patch."
 fi
 
+# ── 4.8. PATCH CORE C++ FOR PLAYERSTORAGE.CPP SHIELDS/RELICS ──────────────────
+PLAYERSTORAGE_CPP="$SERVER_DIR/src/server/game/Entities/Player/PlayerStorage.cpp"
+if [ -f "$PLAYERSTORAGE_CPP" ]; then
+    if ! grep -q "SpellDraft.Enable" "$PLAYERSTORAGE_CPP"; then
+        echo "Patching PlayerStorage.cpp to support shields/relics for all classes..."
+        python3 -c '
+import sys
+playerstorage_cpp = sys.argv[1]
+with open(playerstorage_cpp, "r", encoding="utf-8") as f:
+    content = f.read()
+
+target_shield = """        // Check for shields
+        if (proto->SubClass == ITEM_SUBCLASS_ARMOR_SHIELD && !(
+            IsClass(CLASS_PALADIN, CLASS_CONTEXT_EQUIP_SHIELDS)
+            || IsClass(CLASS_WARRIOR, CLASS_CONTEXT_EQUIP_SHIELDS)
+            || IsClass(CLASS_SHAMAN, CLASS_CONTEXT_EQUIP_SHIELDS)))"""
+
+replacement_shield = """        // Check for shields
+        if (proto->SubClass == ITEM_SUBCLASS_ARMOR_SHIELD && !(
+            IsClass(CLASS_PALADIN, CLASS_CONTEXT_EQUIP_SHIELDS)
+            || IsClass(CLASS_WARRIOR, CLASS_CONTEXT_EQUIP_SHIELDS)
+            || IsClass(CLASS_SHAMAN, CLASS_CONTEXT_EQUIP_SHIELDS)
+            || sConfigMgr->GetOption<bool>("SpellDraft.Enable", true)))"""
+
+target_libram = """        // Check for librams.
+        if (proto->SubClass == ITEM_SUBCLASS_ARMOR_LIBRAM && !IsClass(CLASS_PALADIN, CLASS_CONTEXT_EQUIP_RELIC))"""
+
+replacement_libram = """        // Check for librams.
+        if (proto->SubClass == ITEM_SUBCLASS_ARMOR_LIBRAM && !IsClass(CLASS_PALADIN, CLASS_CONTEXT_EQUIP_RELIC) && !sConfigMgr->GetOption<bool>("SpellDraft.Enable", true))"""
+
+target_idol = """        // CHeck for idols.
+        if (proto->SubClass == ITEM_SUBCLASS_ARMOR_IDOL && !IsClass(CLASS_DRUID, CLASS_CONTEXT_EQUIP_RELIC))"""
+
+replacement_idol = """        // CHeck for idols.
+        if (proto->SubClass == ITEM_SUBCLASS_ARMOR_IDOL && !IsClass(CLASS_DRUID, CLASS_CONTEXT_EQUIP_RELIC) && !sConfigMgr->GetOption<bool>("SpellDraft.Enable", true))"""
+
+target_totem = """        // Check for totems.
+        if (proto->SubClass == ITEM_SUBCLASS_ARMOR_TOTEM && !IsClass(CLASS_SHAMAN, CLASS_CONTEXT_EQUIP_RELIC))"""
+
+replacement_totem = """        // Check for totems.
+        if (proto->SubClass == ITEM_SUBCLASS_ARMOR_TOTEM && !IsClass(CLASS_SHAMAN, CLASS_CONTEXT_EQUIP_RELIC) && !sConfigMgr->GetOption<bool>("SpellDraft.Enable", true))"""
+
+target_sigil = """        // Check for sigils.
+        if (proto->SubClass == ITEM_SUBCLASS_ARMOR_SIGIL && !IsClass(CLASS_DEATH_KNIGHT, CLASS_CONTEXT_EQUIP_RELIC))"""
+
+replacement_sigil = """        // Check for sigils.
+        if (proto->SubClass == ITEM_SUBCLASS_ARMOR_SIGIL && !IsClass(CLASS_DEATH_KNIGHT, CLASS_CONTEXT_EQUIP_RELIC) && !sConfigMgr->GetOption<bool>("SpellDraft.Enable", true))"""
+
+if target_shield in content and target_libram in content and target_idol in content and target_totem in content and target_sigil in content:
+    content = content.replace(target_shield, replacement_shield, 1)
+    content = content.replace(target_libram, replacement_libram, 1)
+    content = content.replace(target_idol, replacement_idol, 1)
+    content = content.replace(target_totem, replacement_totem, 1)
+    content = content.replace(target_sigil, replacement_sigil, 1)
+    with open(playerstorage_cpp, "w", encoding="utf-8") as f:
+        f.write(content)
+    print("PlayerStorage.cpp successfully patched.")
+else:
+    print("Error: Could not locate target blocks in PlayerStorage.cpp.")
+    sys.exit(1)
+' "$PLAYERSTORAGE_CPP"
+        if [ $? -ne 0 ]; then
+            echo "Error: Failed to patch PlayerStorage.cpp. Aborting installation."
+            exit 1
+        fi
+    else
+        echo "PlayerStorage.cpp is already patched for custom shields and relics."
+    fi
+else
+    echo "Warning: Could not locate PlayerStorage.cpp at $PLAYERSTORAGE_CPP. Skipping core patch."
+fi
+
 # ── 5. REBUILD WORLDSERVER IMAGE ───────────────────────────────
 if [ -f "$SERVER_DIR/docker-compose.yml" ]; then
     echo "---------------------------------------------"

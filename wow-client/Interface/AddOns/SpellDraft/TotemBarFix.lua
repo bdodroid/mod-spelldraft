@@ -151,3 +151,39 @@ if ShapeshiftBarFrame then
     ShapeshiftBarFrame:HookScript("OnShow", QueueAdjust)
     ShapeshiftBarFrame:HookScript("OnHide", QueueAdjust)
 end
+
+-- ---------------------------------------------------------------------------
+-- Pet Action Bar Position Fix (Issue 1)
+-- ---------------------------------------------------------------------------
+-- Overwrite the global PetActionBar_UpdatePositionValues to prevent the pet bar
+-- from being thrown off the right side of the screen due to the client's
+-- buggy MULTICASTACTIONBAR_XPOS calculation.
+function PetActionBar_UpdatePositionValues()
+    if ( PetActionBarFrame_IsAboveShapeshift(true) ) then
+        PETACTIONBAR_XPOS = 36;
+    elseif ( MainMenuBarVehicleLeaveButton and MainMenuBarVehicleLeaveButton:IsShown() ) then
+        PETACTIONBAR_XPOS = MainMenuBarVehicleLeaveButton:GetRight() - 200;
+    elseif ( MultiCastActionBarFrame and HasMultiCastActionBar() ) then
+        local numTotems = MultiCastActionBarFrame.numActiveSlots or 0
+        local totemWidth = numTotems * 58
+        
+        local numStances = GetNumShapeshiftForms() or 0
+        local stanceWidth = 0
+        if numStances > 0 and ShapeshiftBarFrame and ShapeshiftBarFrame:IsShown() then
+            stanceWidth = numStances * 38
+        end
+        
+        local totemX = 30
+        if stanceWidth > 0 then
+            totemX = totemX + stanceWidth + 20
+        end
+        
+        PETACTIONBAR_XPOS = totemX + totemWidth + 20;
+    elseif ( ShapeshiftBarFrame and GetNumShapeshiftForms() > 0 ) then
+        local numStances = GetNumShapeshiftForms() or 0
+        PETACTIONBAR_XPOS = (numStances * 38) + 20;
+    else
+        PETACTIONBAR_XPOS = 36;
+    end
+end
+

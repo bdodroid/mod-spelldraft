@@ -32,7 +32,11 @@ INSERT INTO `npc_vendor` (`entry`, `slot`, `item`, `maxcount`, `incrtime`, `Exte
 (99000, 13, 22243, 0, 0, 0),  -- Small Soul Pouch (12 Slots)
 (99000, 14, 21340, 0, 0, 0),  -- Soul Pouch (20 Slots)
 (99000, 15, 2504, 0, 0, 0),   -- Worn Bow
-(99000, 16, 2512, 0, 0, 0);   -- Rough Arrow
+(99000, 16, 2512, 0, 0, 0),   -- Rough Arrow
+(99000, 17, 5175, 0, 0, 0),   -- Earth Totem
+(99000, 18, 5176, 0, 0, 0),   -- Fire Totem
+(99000, 19, 5177, 0, 0, 0),   -- Water Totem
+(99000, 20, 5178, 0, 0, 0);   -- Air Totem
 
 
 -- Set the BuyPrice of Soul Shards to 1 silver (100 copper) so they are not free
